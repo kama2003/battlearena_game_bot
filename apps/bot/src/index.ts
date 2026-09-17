@@ -2,8 +2,12 @@ import { Bot } from "grammy";
 import { env } from "./config/env";
 import { handleStart } from "./handlers/start";
 import { handleCheckSubscription } from "./handlers/checkSubscription";
+import { getProxyAgent } from "./lib/proxyAgent";
 
-const bot = new Bot(env.BOT_TOKEN);
+const proxyAgent = getProxyAgent();
+const bot = new Bot(env.BOT_TOKEN, {
+  client: proxyAgent ? { baseFetchConfig: { agent: proxyAgent } } : undefined,
+});
 
 bot.command("start", handleStart);
 bot.callbackQuery("check_subscription", handleCheckSubscription);
