@@ -7,6 +7,24 @@
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
     />
     <title>BATTLE</title>
+    <script>
+      // Counterpart to public/404.html's GitHub Pages SPA redirect.
+      (function (l) {
+        if (l.search[1] === "p" && l.search[2] === "=") {
+          var decoded = l.search
+            .slice(1)
+            .split("&")
+            .map(function (s) {
+              return s.replace(/~and~/g, "&");
+            });
+          window.history.replaceState(
+            null,
+            "",
+            l.pathname.slice(0, -1) + decoded[0].slice(2) + (decoded[1] ? "?" + decoded[1].slice(2) : "") + l.hash,
+          );
+        }
+      })(window.location);
+    </script>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

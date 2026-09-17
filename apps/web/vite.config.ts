@@ -6,6 +6,10 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
+  // Set in CI when deploying to a subpath (e.g. GitHub Pages project sites:
+  // https://<user>.github.io/<repo>/). Defaults to root for local dev and
+  // any host that serves the app from its own domain root.
+  base: process.env.VITE_BASE_PATH || "/",
   plugins: [react()],
   resolve: {
     alias: {

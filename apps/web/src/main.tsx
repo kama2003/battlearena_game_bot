@@ -7,15 +7,17 @@ import "@battle/ui/styles/tokens.css";
 import "./styles/global.css";
 import { queryClient } from "./lib/queryClient";
 import { initTelegramApp } from "./lib/telegram";
+import { enableMocksIfRequested } from "./dev/enableMocks";
 import { App } from "./App";
 
+enableMocksIfRequested();
 initTelegramApp();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <ToastProvider>
-        <BrowserRouter>
+        <BrowserRouter basename={import.meta.env.BASE_URL}>
           <App />
         </BrowserRouter>
       </ToastProvider>
