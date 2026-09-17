@@ -1,0 +1,24 @@
+# Builds and runs apps/bot (long polling — no exposed port needed).
+# Build context must be the monorepo ROOT (see Dockerfile.api).
+#
+#   docker build -f Dockerfile.bot -t battle-bot .
+#   docker run --env-file .env battle-bot
+FROM node:20-slim AS base
+RUN corepack enable && corepack prepare pnpm@12.4.2 --activate
+WORKDIR /app
+
+FROM base AS deps
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+COPY apps/api/package.json apps/api/package.json
+COPY apps/bot/package.json apps/bot/package.json
+COPY apps/web/package.json apps/web/package.json
+COPY packages/types/package.json packages/types/package.json
+COPY packages/config/package.json packages/config/package.json
+COPY packages/ui/package.json packages/ui/package.json
+RUN pnpm install --frozen-lockfile
+
+FROM deps AS runtime
+COPY . .
+
+ENV NODE_ENV=production
+CMD ["pnpm", "--filter", "@battle/bot", "start"]

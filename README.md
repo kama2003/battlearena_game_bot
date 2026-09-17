@@ -234,18 +234,58 @@ pnpm build       # typecheck + prisma generate + сборка web (Vite) и пр
 
 ---
 
-## 10. Production deployment (кратко)
+## 10. Production deployment
 
-1. Разверните PostgreSQL, примените `pnpm db:deploy`.
-2. Соберите и запустите `apps/api` (`pnpm --filter @battle/api build && pnpm --filter @battle/api start`)
-   за HTTPS-прокси; пропишите реальные `.env`.
-3. Соберите `apps/web` (`pnpm --filter @battle/web build`) — статика в
-   `apps/web/dist`, раздайте через CDN/статический хостинг с HTTPS
-   (Telegram Mini App требует HTTPS).
-4. Запустите `apps/bot` (`pnpm --filter @battle/bot start`) как постоянный процесс
-   (systemd/pm2/контейнер) — он держит long polling.
-5. В BotFather укажите продовый `MINI_APP_URL`.
-6. Не забудьте `NODE_ENV=production` и не задавайте `DEV_TELEGRAM_USER_ID` в проде.
+### 10.1 Frontend (apps/web) → GitHub Pages
+
+Уже настроено: `.github/workflows/deploy-pages.yml` собирает `apps/web` и
+деплоит на GitHub Pages при каждом пуше в `main`, который трогает
+`apps/web`/`packages`. Один раз включите источник Pages на "GitHub Actions"
+(Settings → Pages → Source), если ещё не включено.
+
+`VITE_API_URL`, с которым соберётся фронтенд, берётся из **переменной
+репозитория** (Settings → Secrets and variables → Actions → Variables →
+`VITE_API_URL`) — пропишите туда публичный адрес `apps/api` (шаг 10.2) и
+перезапустите workflow (`gh workflow run deploy-pages.yml` или любой пуш).
+Без этого фронтенд по умолчанию соберётся с `http://localhost:4000`, что не
+достучится ни до чего с телефона.
+
+### 10.2 Backend (apps/api + PostgreSQL) и bot — Docker
+
+В корне лежат `Dockerfile.api` и `Dockerfile.bot` — собираются с контекстом
+**из корня репозитория** (им нужен весь pnpm-workspace, а не только
+`apps/api`/`apps/bot`):
+
+```bash
+docker build -f Dockerfile.api -t battle-api .
+docker build -f Dockerfile.bot -t battle-bot .
+```
+
+Подходит для любого Docker-хостинга — Railway, Render, Fly.io, обычный VPS.
+Пример на **Railway** (быстрее всего для одного человека, есть бесплатный
+PostgreSQL-плагин):
+
+1. Создайте проект → **Add PostgreSQL** (Railway сам пропишет `DATABASE_URL`
+   переменной в связанные сервисы).
+2. **New Service → Deploy from GitHub repo** → выберите этот репозиторий →
+   в настройках сервиса укажите **Dockerfile Path** = `Dockerfile.api`.
+   Пропишите остальные переменные из `.env.example` (`BOT_TOKEN`,
+   `BOT_USERNAME`, `CHANNEL_ID`, `CHANNEL_USERNAME`, `MINI_APP_URL`,
+   `JWT_SECRET`, `NODE_ENV=production`); `DATABASE_URL` уже придёт от плагина.
+   Сгенерируйте публичный домен сервиса (Settings → Networking → Generate
+   Domain) — это и есть URL для `VITE_API_URL` из шага 10.1.
+   Миграции (`prisma migrate deploy`) применяются автоматически при старте
+   контейнера.
+3. Ещё один **New Service** с тем же репозиторием, но **Dockerfile Path** =
+   `Dockerfile.bot`, и теми же Telegram-переменными (кроме `PORT`) — он
+   держит long-polling бота постоянно, а не только пока открыта эта сессия.
+4. В BotFather ничего дополнительно настраивать не нужно — `MINI_APP_URL`
+   и меню бота бот прописывает себе сам через Bot API при старте
+   (`setChatMenuButton`).
+5. (Опционально) заполнить рейтинг тестовыми данными: выполните
+   `pnpm db:seed` с `DATABASE_URL`, указывающим на продовую базу (Railway
+   даёт этот URL в переменных плагина Postgres) — так рейтинг не будет
+   пустым на старте.
 
 ---
 

@@ -1,0 +1,32 @@
+# Builds and runs apps/api. Build context must be the monorepo ROOT
+# (not apps/api) since it needs the pnpm workspace and packages/* deps.
+#
+#   docker build -f Dockerfile.api -t battle-api .
+#   docker run -p 4000:4000 --env-file .env battle-api
+#
+# Works on any Docker-based host (Railway, Render, Fly.io, a plain VPS).
+FROM node:20-slim AS base
+RUN corepack enable && corepack prepare pnpm@12.4.2 --activate
+WORKDIR /app
+
+FROM base AS deps
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+COPY apps/api/package.json apps/api/package.json
+COPY apps/bot/package.json apps/bot/package.json
+COPY apps/web/package.json apps/web/package.json
+COPY packages/types/package.json packages/types/package.json
+COPY packages/config/package.json packages/config/package.json
+COPY packages/ui/package.json packages/ui/package.json
+RUN pnpm install --frozen-lockfile
+
+FROM deps AS runtime
+COPY . .
+RUN pnpm --filter @battle/api exec prisma generate
+
+ENV NODE_ENV=production
+EXPOSE 4000
+# Applies any pending migrations before starting. Fine for a single instance;
+# if you ever scale to multiple API instances, run migrations as a separate
+# one-off release step instead (`pnpm --filter @battle/api exec prisma migrate deploy`)
+# so N instances don't race to apply them concurrently.
+CMD ["sh", "-c", "pnpm --filter @battle/api exec prisma migrate deploy && pnpm --filter @battle/api start"]
