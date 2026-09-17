@@ -95,9 +95,9 @@ export function ResultPage() {
           Вызвать друга
         </Button>
         <Button
-          size="lg"
+          size="md"
           variant="ghost"
-          icon={<Share2 size={18} />}
+          icon={<Share2 size={16} />}
           iconPosition="left"
           onClick={handleShareResult}
         >

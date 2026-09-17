@@ -54,7 +54,7 @@ export function SubscribePage() {
               key={bullet}
               className="flex items-center gap-3 rounded-card-sm bg-surface px-4 py-3 text-left border border-border"
             >
-              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent-strong">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-surface-alt text-primary">
                 <Check size={14} strokeWidth={2.5} />
               </span>
               <span className="text-[14px] font-medium text-primary">{bullet}</span>

@@ -24,10 +24,10 @@ export interface ButtonProps
 }
 
 const variantClasses: Record<ButtonVariant, string> = {
-  primary: "bg-btn-primary text-btn-primary-fg hover:opacity-90 disabled:opacity-40",
-  secondary: "bg-surface-alt text-primary hover:bg-border/60 disabled:opacity-40",
-  ghost: "bg-transparent text-primary hover:bg-surface-alt disabled:opacity-40",
-  danger: "bg-red-600 text-white hover:bg-red-700 disabled:opacity-40",
+  primary: "bg-btn-primary text-btn-primary-fg font-semibold hover:opacity-90 disabled:opacity-40",
+  secondary: "bg-surface-alt text-primary font-semibold hover:bg-border/60 disabled:opacity-40",
+  ghost: "bg-transparent text-secondary font-medium hover:bg-surface-alt disabled:opacity-40",
+  danger: "bg-red-600 text-white font-semibold hover:bg-red-700 disabled:opacity-40",
 };
 
 const sizeClasses: Record<ButtonSize, string> = {
@@ -57,7 +57,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         whileTap={{ scale: 0.98 }}
         transition={{ duration: 0.15 }}
         className={cn(
-          "inline-flex items-center justify-center gap-2 font-semibold tracking-tight",
+          "inline-flex items-center justify-center gap-2 tracking-tight",
           "transition-colors duration-150 select-none",
           "disabled:cursor-not-allowed",
           variantClasses[variant],

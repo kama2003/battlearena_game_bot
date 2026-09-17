@@ -20,8 +20,10 @@ export function AppShell({ children }: { children: ReactNode }) {
   const immersive = IMMERSIVE_PREFIXES.some((prefix) => location.pathname.startsWith(prefix));
 
   return (
-    <div className="mx-auto min-h-[100dvh] max-w-[480px] bg-background">
-      <main className={immersive ? "" : "pb-[88px]"}>{children}</main>
+    <div className="mx-auto min-h-[100dvh] max-w-[480px] bg-background pt-[env(safe-area-inset-top)]">
+      <main className={immersive ? "" : "pb-[calc(88px+env(safe-area-inset-bottom))]"}>
+        {children}
+      </main>
       {!immersive && (
         <BottomNavigation
           items={NAV_ITEMS}
@@ -33,7 +35,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   );
 }
 
+/** Empty string deliberately matches no NAV_ITEMS — a secondary screen like
+ * /invite shouldn't fall back to highlighting "Главная" as if it were active. */
 function activeNavValue(pathname: string): string {
   const match = NAV_ITEMS.find((item) => pathname.startsWith(item.value));
-  return match?.value ?? "/home";
+  return match?.value ?? "";
 }

@@ -8,7 +8,7 @@ export interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
 }
 
 const variantMap: Record<BadgeVariant, string> = {
-  neutral: "bg-surface-alt text-secondary",
+  neutral: "bg-surface-alt text-secondary border border-border",
   accent: "bg-accent/15 text-accent-strong",
   success: "bg-emerald-500/10 text-emerald-700",
   danger: "bg-red-500/10 text-red-700",

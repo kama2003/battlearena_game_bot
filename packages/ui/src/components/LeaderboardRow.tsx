@@ -10,10 +10,11 @@ export interface LeaderboardRowProps {
   className?: string;
 }
 
-const medalByRank: Record<number, string> = {
-  1: "🥇",
-  2: "🥈",
-  3: "🥉",
+/** Ranks 1-3 get a filled badge instead of a plain number — #1 in accent, matching the "first place" accent use case; #2/#3 stay neutral. */
+const topRankStyles: Record<number, string> = {
+  1: "bg-accent text-white",
+  2: "bg-primary text-white",
+  3: "bg-surface-alt text-primary ring-1 ring-inset ring-border",
 };
 
 export function LeaderboardRow({
@@ -24,7 +25,7 @@ export function LeaderboardRow({
   isCurrentUser,
   className,
 }: LeaderboardRowProps) {
-  const medal = medalByRank[rank];
+  const topStyle = topRankStyles[rank];
 
   return (
     <div
@@ -36,11 +37,11 @@ export function LeaderboardRow({
     >
       <span
         className={cn(
-          "flex w-7 shrink-0 items-center justify-center text-[15px] font-semibold",
-          medal ? "text-[18px]" : "text-secondary",
+          "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[13px] font-semibold tabular-nums",
+          topStyle ?? "text-[15px] font-medium text-secondary",
         )}
       >
-        {medal ?? rank}
+        {rank}
       </span>
       <Avatar src={photoUrl} name={name} size="sm" />
       <span className="min-w-0 flex-1 truncate text-[15px] font-medium text-primary">

@@ -1,9 +1,17 @@
 import { Lock } from "lucide-react";
-import { Avatar, Card, Skeleton, StatCard } from "@battle/ui";
+import { Avatar, Card, InlineError, Skeleton, StatCard } from "@battle/ui";
 import { useProfile } from "../hooks/useProfile";
 
 export function ProfilePage() {
-  const { data, isLoading } = useProfile();
+  const { data, isLoading, isError, refetch } = useProfile();
+
+  if (isError) {
+    return (
+      <div className="px-4 pt-8">
+        <InlineError onRetry={() => refetch()} />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-5 px-4 pt-8">
@@ -27,13 +35,13 @@ export function ProfilePage() {
       </div>
 
       {isLoading ? (
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-3">
           {Array.from({ length: 4 }).map((_, i) => (
             <Skeleton key={i} className="h-20" />
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-3">
           <StatCard value={data?.stats.bestScore ?? 0} label="Лучший счёт" accent />
           <StatCard value={data?.stats.rank ? `#${data.stats.rank}` : "—"} label="Место" />
           <StatCard value={data?.stats.gamesPlayed ?? 0} label="Игр" />
@@ -45,7 +53,7 @@ export function ProfilePage() {
 
       <div>
         <h2 className="mb-2 text-[16px] font-semibold text-primary">Достижения</h2>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-3 gap-3">
           {data?.achievements.map((achievement) => (
             <Card
               key={achievement.key}

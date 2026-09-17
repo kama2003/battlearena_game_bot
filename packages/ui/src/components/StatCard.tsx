@@ -13,7 +13,7 @@ export function StatCard({ icon, value, label, accent, className }: StatCardProp
   return (
     <div
       className={cn(
-        "flex flex-1 flex-col items-center gap-1 rounded-card-sm bg-surface-alt px-3 py-4 text-center",
+        "flex flex-1 flex-col items-center gap-1 rounded-card-sm border border-border bg-surface-alt px-3 py-4 text-center",
         className,
       )}
     >

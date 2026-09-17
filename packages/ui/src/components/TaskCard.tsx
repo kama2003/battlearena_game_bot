@@ -36,8 +36,8 @@ export function TaskCard({
         {icon}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[15px] font-semibold text-primary">{title}</span>
-        <span className="block truncate text-[13px] text-secondary">{description}</span>
+        <span className="block text-[15px] font-semibold leading-snug text-primary">{title}</span>
+        <span className="block text-[13px] leading-snug text-secondary line-clamp-2">{description}</span>
       </span>
       <span className="flex shrink-0 items-center gap-1.5">
         {completed ? (
@@ -46,7 +46,7 @@ export function TaskCard({
           </span>
         ) : (
           <>
-            <span className="text-[13px] font-medium text-accent-strong">{reward}</span>
+            <span className="whitespace-nowrap text-[13px] font-semibold text-primary">{reward}</span>
             <ChevronRight size={18} className="text-secondary" />
           </>
         )}
