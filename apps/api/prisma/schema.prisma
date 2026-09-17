@@ -1,0 +1,225 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// User
+// ---------------------------------------------------------------------------
+
+model User {
+  id           String   @id @default(uuid())
+  telegramId   String   @unique
+  username     String?
+  firstName    String
+  lastName     String?
+  photoUrl     String?
+  referralCode String   @unique
+  referredById String?
+  referredBy   User?    @relation("Referrals", fields: [referredById], references: [id])
+  referrals    User[]   @relation("Referrals")
+
+  /// Extra attempts earned via referrals/tasks, on top of the daily free pool. Never expires.
+  bonusAttempts Int @default(0)
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  lastSeenAt DateTime @default(now())
+
+  gameSessions        GameSession[]
+  gameResults         GameResult[]
+  seasonScores        SeasonScore[]
+  referralsGiven      Referral[]           @relation("ReferralsGiven")
+  referralReceived    Referral?            @relation("ReferralReceived")
+  challengesCreated   Challenge[]          @relation("ChallengesCreated")
+  challengesPlayed    Challenge[]          @relation("ChallengesPlayed")
+  userTasks           UserTask[]
+  subscriptionChecks  SubscriptionCheck[]
+
+  @@index([referralCode])
+}
+
+// ---------------------------------------------------------------------------
+// Game
+// ---------------------------------------------------------------------------
+
+enum GameSessionStatus {
+  ACTIVE
+  FINISHED
+  EXPIRED
+}
+
+model GameSession {
+  id        String            @id @default(uuid())
+  userId    String
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status    GameSessionStatus @default(ACTIVE)
+  startedAt DateTime          @default(now())
+  expiresAt DateTime
+  finishedAt DateTime?
+
+  challengeId String?
+  challenge   Challenge? @relation(fields: [challengeId], references: [id])
+
+  result GameResult?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, status])
+}
+
+model GameResult {
+  id            String      @id @default(uuid())
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gameSessionId String      @unique
+  gameSession   GameSession @relation(fields: [gameSessionId], references: [id], onDelete: Cascade)
+  score         Int
+  seasonId      String
+  season        Season      @relation(fields: [seasonId], references: [id])
+  createdAt     DateTime    @default(now())
+
+  @@index([seasonId, score])
+  @@index([seasonId, createdAt])
+  @@index([userId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Seasons
+// ---------------------------------------------------------------------------
+
+model Season {
+  id            String   @id @default(uuid())
+  number        Int      @unique
+  name          String
+  startsAt      DateTime
+  endsAt        DateTime
+  prizeFund     Int      @default(0)
+  prizeCurrency String   @default("RUB")
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  gameResults  GameResult[]
+  seasonScores SeasonScore[]
+
+  @@index([isActive])
+}
+
+model SeasonScore {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  seasonId    String
+  season      Season   @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  bestScore   Int      @default(0)
+  totalScore  Int      @default(0)
+  gamesPlayed Int      @default(0)
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, seasonId])
+  @@index([seasonId, bestScore])
+}
+
+// ---------------------------------------------------------------------------
+// Referrals
+// ---------------------------------------------------------------------------
+
+enum ReferralStatus {
+  PENDING
+  CONFIRMED
+}
+
+model Referral {
+  id             String         @id @default(uuid())
+  referrerId     String
+  referrer       User           @relation("ReferralsGiven", fields: [referrerId], references: [id], onDelete: Cascade)
+  referredUserId String         @unique
+  referredUser   User           @relation("ReferralReceived", fields: [referredUserId], references: [id], onDelete: Cascade)
+  status         ReferralStatus @default(PENDING)
+  rewardGranted  Boolean        @default(false)
+  createdAt      DateTime       @default(now())
+  confirmedAt    DateTime?
+
+  @@index([referrerId, status])
+}
+
+// ---------------------------------------------------------------------------
+// Challenges (duels)
+// ---------------------------------------------------------------------------
+
+enum ChallengeStatus {
+  PENDING
+  COMPLETED
+}
+
+model Challenge {
+  id            String          @id @default(uuid())
+  challengerId  String
+  challenger    User            @relation("ChallengesCreated", fields: [challengerId], references: [id], onDelete: Cascade)
+  targetScore   Int
+  status        ChallengeStatus @default(PENDING)
+  opponentId    String?
+  opponent      User?           @relation("ChallengesPlayed", fields: [opponentId], references: [id])
+  opponentScore Int?
+  won           Boolean?
+  createdAt     DateTime        @default(now())
+  completedAt   DateTime?
+
+  gameSessions GameSession[]
+
+  @@index([challengerId])
+}
+
+// ---------------------------------------------------------------------------
+// Tasks
+// ---------------------------------------------------------------------------
+
+enum TaskKey {
+  SUBSCRIBE_CHANNEL
+  PLAY_DAILY
+  INVITE_FRIEND
+  SHARE_RESULT
+}
+
+model Task {
+  id             String   @id @default(uuid())
+  key            TaskKey  @unique
+  title          String
+  description    String
+  rewardAttempts Int      @default(1)
+  active         Boolean  @default(true)
+
+  userTasks UserTask[]
+}
+
+model UserTask {
+  id          String    @id @default(uuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  taskId      String
+  task        Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  periodKey   String
+  completedAt DateTime?
+  claimedAt   DateTime?
+
+  @@unique([userId, taskId, periodKey])
+  @@index([userId, periodKey])
+}
+
+// ---------------------------------------------------------------------------
+// Subscription audit
+// ---------------------------------------------------------------------------
+
+model SubscriptionCheck {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscribed  Boolean
+  checkedAt   DateTime @default(now())
+
+  @@index([userId, checkedAt])
+}

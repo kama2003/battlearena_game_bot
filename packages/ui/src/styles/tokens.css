@@ -1,0 +1,21 @@
+:root {
+  --color-background: #f7f7f5;
+  --color-surface: #ffffff;
+  --color-surface-alt: #f1f1ef;
+  --color-text-primary: #161719;
+  --color-text-secondary: #707174;
+  --color-border: #e8e8e5;
+  --color-btn-primary-bg: #17191a;
+  --color-btn-primary-text: #ffffff;
+  --color-accent: #d9a441;
+  --color-accent-strong: #c99137;
+
+  --radius-card: 24px;
+  --radius-card-sm: 20px;
+  --radius-button: 20px;
+  --radius-button-sm: 18px;
+  --radius-block: 28px;
+  --radius-chip: 14px;
+
+  --font-family: "Onest", "Manrope", "Inter", system-ui, sans-serif;
+}
