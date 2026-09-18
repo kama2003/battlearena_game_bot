@@ -36,9 +36,13 @@ export async function callAdminApi<T>(
         method: options.method ?? "GET",
         agent: isHttps ? getProxyAgent() : undefined,
         headers: {
-          "Content-Type": "application/json",
           "X-Admin-Secret": env.ADMIN_API_SECRET,
-          ...(bodyText ? { "Content-Length": Buffer.byteLength(bodyText) } : {}),
+          // Fastify's JSON body parser rejects an empty body when
+          // Content-Type says application/json (400, before the route even
+          // runs) — only send it when there's an actual body to parse.
+          ...(bodyText
+            ? { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(bodyText) }
+            : {}),
         },
       },
       (res) => {
