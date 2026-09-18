@@ -168,6 +168,43 @@ export async function finalizeSeasonIfExpired(): Promise<FinalizeSeasonResult> {
   return { finalized: true, endedSeason: result.endedSeason, winners: result.winners };
 }
 
+export interface CancelSeasonResult {
+  cancelledSeasonName: string | null;
+  newSeason: Season;
+}
+
+/**
+ * Admin-triggered early end with no winner computation and no announcement
+ * — for scrapping a season gone wrong, as opposed to /checkwinner's
+ * "the season ended normally, tell everyone" path. Attempts reset
+ * immediately too, since getAttemptsInfo bounds "today" by the current
+ * season's startsAt (see game/service.ts) — a fresh season means a fresh
+ * startsAt, so nobody stays blocked by attempts they used in the old one.
+ */
+export async function cancelCurrentSeason(): Promise<CancelSeasonResult> {
+  const now = new Date();
+  const active = await prisma.season.findFirst({ where: { isActive: true }, orderBy: { number: "desc" } });
+
+  let baseNumber = active?.number ?? 0;
+  if (active) {
+    const deactivated = await prisma.season.updateMany({
+      where: { id: active.id, isActive: true },
+      data: { isActive: false },
+    });
+    if (deactivated.count === 0) {
+      // Cancelled or rotated by a concurrent request already — surface
+      // whatever season that left active rather than creating a duplicate.
+      const current = await prisma.season.findFirst({ where: { isActive: true }, orderBy: { number: "desc" } });
+      if (current) return { cancelledSeasonName: active.name, newSeason: current };
+    } else {
+      baseNumber = active.number;
+    }
+  }
+
+  const newSeason = await createNextSeason(baseNumber, now);
+  return { cancelledSeasonName: active?.name ?? null, newSeason };
+}
+
 export async function buildSeasonResponse(season: Season, userId: string): Promise<SeasonResponse> {
   const [participants, personalScore] = await Promise.all([
     prisma.seasonScore.count({ where: { seasonId: season.id } }),

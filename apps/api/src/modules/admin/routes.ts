@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { env } from "../../config/env";
 import { prisma } from "../../lib/prisma";
-import { finalizeSeasonIfExpired, getOrRotateCurrentSeason } from "../seasons/service";
+import { cancelCurrentSeason, finalizeSeasonIfExpired, getOrRotateCurrentSeason } from "../seasons/service";
 
 const updateSeasonSchema = z
   .object({
@@ -69,5 +69,16 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   // No-op (finalized: false) if the active season hasn't reached endsAt yet.
   app.post("/api/admin/season/finalize", async () => {
     return finalizeSeasonIfExpired();
+  });
+
+  // Ends the season immediately with no winner computation or announcement
+  // — /checkwinner is for a season that ended normally, this is for
+  // scrapping one early.
+  app.post("/api/admin/season/cancel", async () => {
+    const result = await cancelCurrentSeason();
+    return {
+      cancelledSeasonName: result.cancelledSeasonName,
+      newSeason: seasonSummary(result.newSeason),
+    };
   });
 }

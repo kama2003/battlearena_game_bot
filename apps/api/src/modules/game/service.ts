@@ -22,14 +22,26 @@ const MAX_PLAUSIBLE_SCORE = Math.floor(
   GAME_BALANCE.maxTapsPerSecond * GAME_BALANCE.gameDurationSeconds,
 );
 
-async function countFinishedToday(userId: string): Promise<number> {
+/**
+ * The free daily pool resets at UTC midnight — except a season that started
+ * more recently than that (a natural rotation, or the admin cancelling one)
+ * moves the window forward too, so nobody stays blocked by attempts they
+ * used in the season that just ended.
+ */
+function attemptsWindowStart(seasonStartsAt: Date): Date {
+  const dayStart = startOfUtcDay();
+  return seasonStartsAt > dayStart ? seasonStartsAt : dayStart;
+}
+
+async function countFinishedInWindow(userId: string, seasonId: string, windowStart: Date): Promise<number> {
   return prisma.gameResult.count({
-    where: { userId, createdAt: { gte: startOfUtcDay(), lt: endOfUtcDay() } },
+    where: { userId, seasonId, createdAt: { gte: windowStart, lt: endOfUtcDay() } },
   });
 }
 
 export async function getAttemptsInfo(user: User): Promise<GameAttemptsResponse> {
-  const finishedToday = await countFinishedToday(user.id);
+  const season = await getOrRotateCurrentSeason();
+  const finishedToday = await countFinishedInWindow(user.id, season.id, attemptsWindowStart(season.startsAt));
   const freeRemaining = Math.max(0, env.DAILY_FREE_ATTEMPTS - finishedToday);
   const remaining = freeRemaining + user.bonusAttempts;
   const total = env.DAILY_FREE_ATTEMPTS + user.bonusAttempts;
@@ -160,14 +172,14 @@ export async function finishGame(
     // Consume a bonus attempt only once the free daily pool is exhausted. The
     // round just recorded above is included in this count, so a value greater
     // than the free allowance means this was the 4th+ attempt today.
-    const finishedToday = await tx.gameResult.count({
+    const finishedInWindow = await tx.gameResult.count({
       where: {
         userId: user.id,
         seasonId: season.id,
-        createdAt: { gte: startOfUtcDay(), lt: endOfUtcDay() },
+        createdAt: { gte: attemptsWindowStart(season.startsAt), lt: endOfUtcDay() },
       },
     });
-    if (finishedToday > env.DAILY_FREE_ATTEMPTS) {
+    if (finishedInWindow > env.DAILY_FREE_ATTEMPTS) {
       await tx.user.update({
         where: { id: user.id },
         data: { bonusAttempts: { decrement: 1 } },

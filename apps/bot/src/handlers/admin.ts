@@ -28,7 +28,8 @@ function formatSeason(season: SeasonSummary): string {
     `⏳ Осталось: ${season.daysRemaining} дн. (до ${endsAt})\n\n` +
     `/setprize <текст> — изменить приз\n` +
     `/setdays <число> — задать срок в днях от сегодня\n` +
-    `/checkwinner — проверить, не закончился ли сезон, и объявить победителя`
+    `/checkwinner — проверить, не закончился ли сезон, и объявить победителя\n` +
+    `/cancelseason — отменить текущий сезон без объявления победителя`
   );
 }
 
@@ -101,6 +102,25 @@ export async function handleCheckWinner(ctx: Context): Promise<void> {
     );
   } catch (error) {
     await ctx.reply(`Не удалось проверить итоги сезона: ${errorMessage(error)}`);
+  }
+}
+
+export async function handleCancelSeason(ctx: Context): Promise<void> {
+  if (!(await requireAdmin(ctx))) return;
+
+  try {
+    const result = await callAdminApi<{ cancelledSeasonName: string | null; newSeason: SeasonSummary }>(
+      "/api/admin/season/cancel",
+      { method: "POST" },
+    );
+    const cancelledPart = result.cancelledSeasonName ? ` "${result.cancelledSeasonName}"` : "";
+    await ctx.reply(
+      `Сезон${cancelledPart} отменён без объявления победителя.\n\n` +
+        `Начат новый: ${result.newSeason.name} (приз: ${result.newSeason.prizeDescription}, ` +
+        `${result.newSeason.daysRemaining} дн.).\nУ всех игроков снова доступны попытки.`,
+    );
+  } catch (error) {
+    await ctx.reply(`Не удалось отменить сезон: ${errorMessage(error)}`);
   }
 }
 

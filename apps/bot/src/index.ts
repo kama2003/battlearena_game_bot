@@ -3,7 +3,13 @@ import { Bot } from "grammy";
 import { env } from "./config/env";
 import { handleStart } from "./handlers/start";
 import { handleCheckSubscription } from "./handlers/checkSubscription";
-import { handleAdmin, handleCheckWinner, handleSetDays, handleSetPrize } from "./handlers/admin";
+import {
+  handleAdmin,
+  handleCancelSeason,
+  handleCheckWinner,
+  handleSetDays,
+  handleSetPrize,
+} from "./handlers/admin";
 import { getProxyAgent } from "./lib/proxyAgent";
 import { startSeasonWatcher } from "./lib/seasonWatcher";
 
@@ -18,6 +24,7 @@ bot.command("admin", handleAdmin);
 bot.command("setprize", handleSetPrize);
 bot.command("setdays", handleSetDays);
 bot.command("checkwinner", handleCheckWinner);
+bot.command("cancelseason", handleCancelSeason);
 
 bot.catch((error) => {
   console.error("Bot error:", error.message, error.error);
