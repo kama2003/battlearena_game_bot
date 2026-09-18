@@ -48,7 +48,7 @@ async function main() {
   });
 
   startHealthCheckServer();
-  startSeasonWatcher(bot.api);
+  startSeasonWatcher();
 
   console.log(`BATTLE bot starting as @${env.BOT_USERNAME}...`);
   await bot.start({

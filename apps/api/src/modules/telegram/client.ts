@@ -21,6 +21,10 @@ interface GetChatMemberResult {
   status: ChatMemberStatus;
 }
 
+interface SendMessageResult {
+  message_id: number;
+}
+
 /**
  * Thin wrapper around the Telegram Bot API. BOT_TOKEN never leaves this
  * process — the frontend has no access to it and every subscription check
@@ -70,4 +74,13 @@ export async function isUserSubscribedToChannel(telegramUserId: string): Promise
     }
     throw error;
   }
+}
+
+/**
+ * Sends a Telegram message as the bot — used for season-result
+ * announcements (see seasons/service.ts). `chatId` can be a numeric user id
+ * for a DM, or `@channelUsername` to post in the channel.
+ */
+export async function sendTelegramMessage(chatId: string | number, text: string): Promise<void> {
+  await callTelegramApi<SendMessageResult>("sendMessage", { chat_id: chatId, text });
 }

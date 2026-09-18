@@ -88,7 +88,7 @@ export async function handleCheckWinner(ctx: Context): Promise<void> {
   if (!(await requireAdmin(ctx))) return;
 
   try {
-    const result = await checkAndAnnounceSeasonEnd(ctx.api);
+    const result = await checkAndAnnounceSeasonEnd();
     if (!result.finalized) {
       await ctx.reply(`Сезон ещё не закончился — осталось ${result.daysRemaining} дн.`);
       return;
