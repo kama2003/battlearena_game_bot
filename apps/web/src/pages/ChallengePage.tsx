@@ -1,6 +1,6 @@
 import { useNavigate, useParams } from "react-router-dom";
-import { Swords } from "lucide-react";
-import { Avatar, Badge, Button, Card } from "@battle/ui";
+import { Swords, X } from "lucide-react";
+import { Avatar, Badge, Button, Card, IconButton } from "@battle/ui";
 import { useChallenge } from "../hooks/useChallenge";
 import { FullScreenLoader } from "../components/FullScreenLoader";
 import { ErrorScreen } from "../components/ErrorScreen";
@@ -18,7 +18,14 @@ export function ChallengePage() {
   const alreadyPlayed = challenge.status === "COMPLETED";
 
   return (
-    <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-8 bg-background px-6">
+    <div className="relative flex min-h-[100dvh] flex-col items-center justify-center gap-8 bg-background px-6">
+      <IconButton
+        icon={<X size={20} />}
+        aria-label="Закрыть"
+        onClick={() => navigate("/home")}
+        className="absolute left-4 top-[max(1rem,env(safe-area-inset-top))]"
+      />
+
       <div className="flex h-20 w-20 items-center justify-center rounded-full bg-accent/15 text-accent-strong">
         <Swords size={32} />
       </div>

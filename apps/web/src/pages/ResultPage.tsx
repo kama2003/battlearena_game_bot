@@ -1,8 +1,8 @@
 import { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Swords, Share2 } from "lucide-react";
+import { Swords, Share2, X } from "lucide-react";
 import type { GameFinishResponse } from "@battle/types";
-import { Button, Card, StatCard, useToast } from "@battle/ui";
+import { Button, Card, IconButton, StatCard, useToast } from "@battle/ui";
 import { useCreateChallenge } from "../hooks/useChallenge";
 import { useReferrals } from "../hooks/useReferrals";
 import { shareViaTelegram } from "../lib/telegram";
@@ -56,7 +56,14 @@ export function ResultPage() {
   }
 
   return (
-    <div className="flex min-h-[100dvh] flex-col justify-between bg-background px-6 pb-8 pt-16">
+    <div className="relative flex min-h-[100dvh] flex-col justify-between bg-background px-6 pb-8 pt-16">
+      <IconButton
+        icon={<X size={20} />}
+        aria-label="Закрыть"
+        onClick={() => navigate("/home")}
+        className="absolute left-4 top-[max(1rem,env(safe-area-inset-top))]"
+      />
+
       <div className="flex flex-col items-center text-center">
         <span className="text-[56px] leading-none">{emoji}</span>
         <p className="mt-4 text-[56px] font-bold leading-none tracking-tight text-primary">

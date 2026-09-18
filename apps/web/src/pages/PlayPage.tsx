@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Button, useToast } from "@battle/ui";
+import { X } from "lucide-react";
+import { Button, IconButton, useToast } from "@battle/ui";
 import { useAttempts, useFinishGame, usePlayChallenge, useStartGame } from "../hooks/useGame";
 import { useChallenge } from "../hooks/useChallenge";
 import { hapticImpact, hapticNotify } from "../lib/telegram";
@@ -132,7 +133,14 @@ export function PlayPage() {
   }
 
   return (
-    <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-8 bg-background px-6">
+    <div className="relative flex min-h-[100dvh] flex-col items-center justify-center gap-8 bg-background px-6">
+      <IconButton
+        icon={<X size={20} />}
+        aria-label="Закрыть"
+        onClick={() => navigate("/home")}
+        className="absolute left-4 top-[max(1rem,env(safe-area-inset-top))]"
+      />
+
       {challenge && (
         <div className="text-center">
           <p className="text-[14px] text-secondary">Тебя вызвал {challenge.challengerName}</p>
