@@ -6,6 +6,10 @@
 #
 # Works on any Docker-based host (Railway, Render, Fly.io, a plain VPS).
 FROM node:20-slim AS base
+# Prisma's query/schema engines dynamically link against OpenSSL, which the
+# slim image doesn't ship — without it they fail at runtime with a cryptic
+# "Schema engine error". See https://pris.ly/d/engine-not-found.
+RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 RUN corepack enable && corepack prepare pnpm@12.4.2 --activate
 WORKDIR /app
 
