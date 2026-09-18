@@ -3,8 +3,9 @@ import { Bot } from "grammy";
 import { env } from "./config/env";
 import { handleStart } from "./handlers/start";
 import { handleCheckSubscription } from "./handlers/checkSubscription";
-import { handleAdmin, handleSetDays, handleSetPrize } from "./handlers/admin";
+import { handleAdmin, handleCheckWinner, handleSetDays, handleSetPrize } from "./handlers/admin";
 import { getProxyAgent } from "./lib/proxyAgent";
+import { startSeasonWatcher } from "./lib/seasonWatcher";
 
 const proxyAgent = getProxyAgent();
 const bot = new Bot(env.BOT_TOKEN, {
@@ -16,6 +17,7 @@ bot.callbackQuery("check_subscription", handleCheckSubscription);
 bot.command("admin", handleAdmin);
 bot.command("setprize", handleSetPrize);
 bot.command("setdays", handleSetDays);
+bot.command("checkwinner", handleCheckWinner);
 
 bot.catch((error) => {
   console.error("Bot error:", error.message, error.error);
@@ -46,6 +48,7 @@ async function main() {
   });
 
   startHealthCheckServer();
+  startSeasonWatcher(bot.api);
 
   console.log(`BATTLE bot starting as @${env.BOT_USERNAME}...`);
   await bot.start({

@@ -23,7 +23,7 @@ export class AdminApiError extends Error {
  */
 export async function callAdminApi<T>(
   path: string,
-  options: { method?: "GET" | "PATCH"; body?: unknown } = {},
+  options: { method?: "GET" | "PATCH" | "POST"; body?: unknown } = {},
 ): Promise<T> {
   const url = new URL(path, env.API_URL);
   const isHttps = url.protocol === "https:";

@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { env } from "../../config/env";
 import { prisma } from "../../lib/prisma";
-import { getOrRotateCurrentSeason } from "../seasons/service";
+import { finalizeSeasonIfExpired, getOrRotateCurrentSeason } from "../seasons/service";
 
 const updateSeasonSchema = z
   .object({
@@ -63,5 +63,11 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       },
     });
     return seasonSummary(updated);
+  });
+
+  // Polled by the bot's season watcher, and by its /checkwinner command.
+  // No-op (finalized: false) if the active season hasn't reached endsAt yet.
+  app.post("/api/admin/season/finalize", async () => {
+    return finalizeSeasonIfExpired();
   });
 }

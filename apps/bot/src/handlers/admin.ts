@@ -1,6 +1,7 @@
 import type { Context } from "grammy";
 import { isChannelAdmin } from "../lib/subscription";
 import { AdminApiError, callAdminApi } from "../lib/apiClient";
+import { checkAndAnnounceSeasonEnd } from "../lib/seasonWatcher";
 
 interface SeasonSummary {
   name: string;
@@ -26,7 +27,8 @@ function formatSeason(season: SeasonSummary): string {
     `🎁 Приз: ${season.prizeDescription}\n` +
     `⏳ Осталось: ${season.daysRemaining} дн. (до ${endsAt})\n\n` +
     `/setprize <текст> — изменить приз\n` +
-    `/setdays <число> — задать срок в днях от сегодня`
+    `/setdays <число> — задать срок в днях от сегодня\n` +
+    `/checkwinner — проверить, не закончился ли сезон, и объявить победителя`
   );
 }
 
@@ -79,6 +81,26 @@ export async function handleSetDays(ctx: Context): Promise<void> {
     await ctx.reply(`Готово! Сезон "${season.name}" теперь заканчивается ${endsAt}.`);
   } catch (error) {
     await ctx.reply(`Не удалось обновить срок: ${errorMessage(error)}`);
+  }
+}
+
+export async function handleCheckWinner(ctx: Context): Promise<void> {
+  if (!(await requireAdmin(ctx))) return;
+
+  try {
+    const result = await checkAndAnnounceSeasonEnd(ctx.api);
+    if (!result.finalized) {
+      await ctx.reply(`Сезон ещё не закончился — осталось ${result.daysRemaining} дн.`);
+      return;
+    }
+    const winnerLine = result.winners?.[0]
+      ? `Победитель: ${result.winners[0].username ? "@" + result.winners[0].username : result.winners[0].firstName} (${result.winners[0].score} очков).`
+      : "Участников с результатами не было.";
+    await ctx.reply(
+      `🏁 ${result.endedSeason?.name} завершён. ${winnerLine}\n\nОбъявление уже отправлено в канал, призёры уведомлены в личку.`,
+    );
+  } catch (error) {
+    await ctx.reply(`Не удалось проверить итоги сезона: ${errorMessage(error)}`);
   }
 }
 
