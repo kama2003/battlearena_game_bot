@@ -5,6 +5,8 @@ import { handleStart } from "./handlers/start";
 import { handleCheckSubscription } from "./handlers/checkSubscription";
 import {
   handleAdmin,
+  handleAdminCallback,
+  handleAdminTextInput,
   handleCancelSeason,
   handleCheckWinner,
   handleSetDays,
@@ -25,6 +27,12 @@ bot.command("setprize", handleSetPrize);
 bot.command("setdays", handleSetDays);
 bot.command("checkwinner", handleCheckWinner);
 bot.command("cancelseason", handleCancelSeason);
+bot.callbackQuery(/^admin:/, handleAdminCallback);
+// Must come after every bot.command() above — it only acts when the admin
+// has a pending prompt from the /admin menu, and no-ops for anything else,
+// but registration order still matters since grammY runs middleware in the
+// order it's added.
+bot.on("message:text", handleAdminTextInput);
 
 bot.catch((error) => {
   console.error("Bot error:", error.message, error.error);
