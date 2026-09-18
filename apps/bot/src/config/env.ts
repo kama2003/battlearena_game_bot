@@ -6,6 +6,10 @@ const envSchema = z.object({
   BOT_USERNAME: z.string().min(1),
   CHANNEL_USERNAME: z.string().min(1),
   MINI_APP_URL: z.string().url(),
+  // Only used for the health-check server (see index.ts) that lets hosts
+  // without a "background worker" free tier (e.g. Render) run the bot as
+  // a web service instead. Irrelevant for a plain long-running process.
+  PORT: z.coerce.number().int().positive().default(3001),
 });
 
 function loadEnv() {

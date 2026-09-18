@@ -261,31 +261,42 @@ docker build -f Dockerfile.api -t battle-api .
 docker build -f Dockerfile.bot -t battle-bot .
 ```
 
-Подходит для любого Docker-хостинга — Railway, Render, Fly.io, обычный VPS.
-Пример на **Railway** (быстрее всего для одного человека, есть бесплатный
-PostgreSQL-плагин):
+Подходит для любого Docker-хостинга — Render, Railway, Fly.io, обычный VPS.
+Пример на **Render** (есть бесплатный тариф без карты на старте):
 
-1. Создайте проект → **Add PostgreSQL** (Railway сам пропишет `DATABASE_URL`
-   переменной в связанные сервисы).
-2. **New Service → Deploy from GitHub repo** → выберите этот репозиторий →
-   в настройках сервиса укажите **Dockerfile Path** = `Dockerfile.api`.
-   Пропишите остальные переменные из `.env.example` (`BOT_TOKEN`,
-   `BOT_USERNAME`, `CHANNEL_ID`, `CHANNEL_USERNAME`, `MINI_APP_URL`,
-   `JWT_SECRET`, `NODE_ENV=production`); `DATABASE_URL` уже придёт от плагина.
-   Сгенерируйте публичный домен сервиса (Settings → Networking → Generate
-   Domain) — это и есть URL для `VITE_API_URL` из шага 10.1.
-   Миграции (`prisma migrate deploy`) применяются автоматически при старте
-   контейнера.
-3. Ещё один **New Service** с тем же репозиторием, но **Dockerfile Path** =
-   `Dockerfile.bot`, и теми же Telegram-переменными (кроме `PORT`) — он
-   держит long-polling бота постоянно, а не только пока открыта эта сессия.
-4. В BotFather ничего дополнительно настраивать не нужно — `MINI_APP_URL`
+1. **New → PostgreSQL** — бесплатный тариф хранит базу **90 дней**, затем
+   нужно перейти на платный план или экспортировать данные и пересоздать
+   базу; для хобби-проекта на старте достаточно. Скопируйте **Internal
+   Database URL**.
+2. **New → Web Service → Build and deploy from a Git repository** → этот
+   репозиторий. Runtime — **Docker**, **Dockerfile Path** = `Dockerfile.api`,
+   **Docker Build Context** = `.` (корень репо). Instance Type — **Free**.
+   Переменные окружения — как в `.env.example` (`BOT_TOKEN`, `BOT_USERNAME`,
+   `CHANNEL_ID`, `CHANNEL_USERNAME`, `MINI_APP_URL`, `JWT_SECRET`,
+   `NODE_ENV=production`) плюс `DATABASE_URL` из шага 1. `PORT` Render
+   проставляет сам — ничего задавать не нужно, `apps/api` уже читает
+   `process.env.PORT`. Публичный адрес сервиса (`https://<name>.onrender.com`)
+   — это и есть URL для `VITE_API_URL` из шага 10.1. Миграции
+   (`prisma migrate deploy`) применяются автоматически при старте контейнера.
+3. Ещё один **Web Service** с тем же репозиторием, но **Dockerfile Path** =
+   `Dockerfile.bot`, те же Telegram-переменные (без `DATABASE_URL`). Бот
+   технически не веб-сервис (Telegram long polling, не HTTP), но у Render
+   нет бесплатного тарифа для background worker'ов — поэтому
+   `apps/bot/src/index.ts` поднимает рядом с polling'ом крошечный
+   HTTP-сервер на `process.env.PORT`, только чтобы Render видел открытый порт.
+4. **Free-тариф Render засыпает после ~15 минут без HTTP-запросов** — для
+   `apps/api` это означает медленный первый запрос после простоя (30–50с),
+   а для бота — что он перестанет отвечать в Telegram, пока не проснётся.
+   Чтобы бот не засыпал, настройте внешний пингер на его URL каждые
+   10 минут — например [UptimeRobot](https://uptimerobot.com) (бесплатно,
+   HTTP-монитор на `https://<bot-service>.onrender.com/`).
+5. В BotFather ничего дополнительно настраивать не нужно — `MINI_APP_URL`
    и меню бота бот прописывает себе сам через Bot API при старте
    (`setChatMenuButton`).
-5. (Опционально) заполнить рейтинг тестовыми данными: выполните
-   `pnpm db:seed` с `DATABASE_URL`, указывающим на продовую базу (Railway
-   даёт этот URL в переменных плагина Postgres) — так рейтинг не будет
-   пустым на старте.
+6. (Опционально) заполнить рейтинг тестовыми данными: выполните
+   `pnpm db:seed` с `DATABASE_URL`, указывающим на продовую базу (Render
+   даёт **External Database URL** для подключения снаружи) — так рейтинг
+   не будет пустым на старте.
 
 ---
 

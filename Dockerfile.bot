@@ -21,4 +21,7 @@ FROM deps AS runtime
 COPY . .
 
 ENV NODE_ENV=production
+# Only used on hosts that require binding a port for their free tier (e.g.
+# Render); a plain long-running host can ignore it entirely.
+EXPOSE 3001
 CMD ["pnpm", "--filter", "@battle/bot", "start"]

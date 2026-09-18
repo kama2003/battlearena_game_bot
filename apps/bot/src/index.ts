@@ -1,3 +1,4 @@
+import { createServer } from "node:http";
 import { Bot } from "grammy";
 import { env } from "./config/env";
 import { handleStart } from "./handlers/start";
@@ -16,10 +17,31 @@ bot.catch((error) => {
   console.error("Bot error:", error.message, error.error);
 });
 
+// Some hosts (e.g. Render) only offer a free tier for services that bind to
+// a port and answer HTTP requests — there's no free "background worker" for
+// a plain long-polling process. This lets the bot pass as one of those,
+// and doubles as the endpoint an external uptime pinger hits to stop the
+// host from putting an idle instance to sleep.
+function startHealthCheckServer() {
+  const server = createServer((_req, res) => {
+    res.writeHead(200, { "Content-Type": "text/plain" });
+    res.end("ok");
+  });
+  // In local dev, apps/api may already hold this same port (shared root
+  // .env). That's harmless here — the health check only matters in
+  // production — so warn and move on instead of crashing the bot.
+  server.on("error", (error) => {
+    console.warn(`Health-check server did not start on port ${env.PORT}:`, error.message);
+  });
+  server.listen(env.PORT, "0.0.0.0");
+}
+
 async function main() {
   await bot.api.setChatMenuButton({
     menu_button: { type: "web_app", text: "BATTLE", web_app: { url: env.MINI_APP_URL } },
   });
+
+  startHealthCheckServer();
 
   console.log(`BATTLE bot starting as @${env.BOT_USERNAME}...`);
   await bot.start({
