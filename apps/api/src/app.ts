@@ -23,8 +23,14 @@ export async function buildApp() {
   });
 
   await app.register(helmet, { contentSecurityPolicy: false });
+  // The browser's Origin header is scheme+host only, never a path — but
+  // MINI_APP_URL includes one (e.g. https://x.github.io/repo/, for the
+  // bot's web_app button). Comparing the full URL against Origin would
+  // never match, silently failing every cross-origin request as a CORS
+  // error rather than a clear one.
+  const miniAppOrigin = new URL(env.MINI_APP_URL).origin;
   await app.register(cors, {
-    origin: [env.MINI_APP_URL, "http://localhost:5173"],
+    origin: [miniAppOrigin, "http://localhost:5173"],
     credentials: true,
   });
   await app.register(rateLimit, {
