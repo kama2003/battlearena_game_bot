@@ -10,6 +10,11 @@ const envSchema = z.object({
   // without a "background worker" free tier (e.g. Render) run the bot as
   // a web service instead. Irrelevant for a plain long-running process.
   PORT: z.coerce.number().int().positive().default(3001),
+
+  // For the /admin, /setprize, /setdays commands — the bot calls apps/api's
+  // admin endpoints rather than touching the database itself.
+  API_URL: z.string().url().default("http://localhost:4000"),
+  ADMIN_API_SECRET: z.string().min(16, "ADMIN_API_SECRET must be at least 16 characters"),
 });
 
 function loadEnv() {

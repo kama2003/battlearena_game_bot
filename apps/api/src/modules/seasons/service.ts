@@ -38,8 +38,7 @@ export async function getOrRotateCurrentSeason(): Promise<Season> {
         name: `Сезон #${nextNumber}`,
         startsAt,
         endsAt,
-        prizeFund: GAME_BALANCE.defaultPrizeFund,
-        prizeCurrency: GAME_BALANCE.defaultPrizeCurrency,
+        prizeDescription: GAME_BALANCE.defaultPrizeDescription,
         isActive: true,
       },
     });
@@ -66,8 +65,7 @@ export async function buildSeasonResponse(season: Season, userId: string): Promi
     startsAt: season.startsAt.toISOString(),
     endsAt: season.endsAt.toISOString(),
     daysRemaining,
-    prizeFund: season.prizeFund,
-    prizeCurrency: season.prizeCurrency,
+    prizeDescription: season.prizeDescription,
     participants,
     personalBest: personalScore?.bestScore ?? 0,
   };

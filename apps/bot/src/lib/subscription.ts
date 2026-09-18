@@ -16,3 +16,13 @@ export async function isSubscribed(api: Api, userId: number): Promise<boolean> {
     return false;
   }
 }
+
+/** Gates the /admin, /setprize, /setdays commands to actual channel admins. */
+export async function isChannelAdmin(api: Api, userId: number): Promise<boolean> {
+  try {
+    const member = await api.getChatMember(`@${env.CHANNEL_USERNAME}`, userId);
+    return ["creator", "administrator"].includes(member.status);
+  } catch {
+    return false;
+  }
+}

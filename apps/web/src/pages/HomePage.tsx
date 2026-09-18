@@ -50,8 +50,8 @@ export function HomePage() {
           <div className="flex gap-2">
             <StatCard
               icon={<Trophy size={18} />}
-              value={`${(season.data?.prizeFund ?? 0).toLocaleString("ru-RU")} ₽`}
-              label="Призовой фонд"
+              value={season.data?.prizeDescription ?? "—"}
+              label="Приз сезона"
               accent
             />
             <StatCard icon={<Users size={18} />} value={season.data?.participants ?? 0} label="Участников" />

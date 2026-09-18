@@ -13,6 +13,7 @@ import { referralsRoutes } from "./modules/referrals/routes";
 import { challengesRoutes } from "./modules/challenges/routes";
 import { tasksRoutes } from "./modules/tasks/routes";
 import { profileRoutes } from "./modules/profile/routes";
+import { adminRoutes } from "./modules/admin/routes";
 
 export async function buildApp() {
   const app = Fastify({
@@ -50,6 +51,7 @@ export async function buildApp() {
   await app.register(challengesRoutes);
   await app.register(tasksRoutes);
   await app.register(profileRoutes);
+  await app.register(adminRoutes);
 
   app.setErrorHandler((error: FastifyError, request, reply) => {
     request.log.error(error);

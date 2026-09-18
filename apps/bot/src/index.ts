@@ -3,6 +3,7 @@ import { Bot } from "grammy";
 import { env } from "./config/env";
 import { handleStart } from "./handlers/start";
 import { handleCheckSubscription } from "./handlers/checkSubscription";
+import { handleAdmin, handleSetDays, handleSetPrize } from "./handlers/admin";
 import { getProxyAgent } from "./lib/proxyAgent";
 
 const proxyAgent = getProxyAgent();
@@ -12,6 +13,9 @@ const bot = new Bot(env.BOT_TOKEN, {
 
 bot.command("start", handleStart);
 bot.callbackQuery("check_subscription", handleCheckSubscription);
+bot.command("admin", handleAdmin);
+bot.command("setprize", handleSetPrize);
+bot.command("setdays", handleSetDays);
 
 bot.catch((error) => {
   console.error("Bot error:", error.message, error.error);

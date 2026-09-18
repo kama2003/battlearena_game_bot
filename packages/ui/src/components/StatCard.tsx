@@ -20,7 +20,7 @@ export function StatCard({ icon, value, label, accent, className }: StatCardProp
       {icon && (
         <span className={cn("mb-1", accent ? "text-accent" : "text-secondary")}>{icon}</span>
       )}
-      <span className="text-[18px] font-semibold leading-none tracking-tight text-primary">
+      <span className="text-[18px] font-semibold leading-tight tracking-tight text-primary break-words">
         {value}
       </span>
       <span className="text-[12px] leading-tight text-secondary">{label}</span>

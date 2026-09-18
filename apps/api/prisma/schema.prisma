@@ -93,15 +93,17 @@ model GameResult {
 // ---------------------------------------------------------------------------
 
 model Season {
-  id            String   @id @default(uuid())
-  number        Int      @unique
-  name          String
-  startsAt      DateTime
-  endsAt        DateTime
-  prizeFund     Int      @default(0)
-  prizeCurrency String   @default("RUB")
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
+  id       String   @id @default(uuid())
+  number   Int      @unique
+  name     String
+  startsAt DateTime
+  endsAt   DateTime
+  /// Free-text description of the prize, set by the channel admin via the bot
+  /// (e.g. "10 000 ₽", "iPhone 16 Pro", "Подписка на год") — not a fixed
+  /// currency amount, since the prize varies season to season.
+  prizeDescription String   @default("10 000 ₽")
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
 
   gameResults  GameResult[]
   seasonScores SeasonScore[]

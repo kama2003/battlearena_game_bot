@@ -22,6 +22,12 @@ const envSchema = z.object({
   REFERRAL_BONUS_ATTEMPTS: z.coerce.number().int().nonnegative().default(1),
 
   DEV_TELEGRAM_USER_ID: z.string().optional(),
+
+  // Shared secret the bot sends to prove it's allowed to call /api/admin/*
+  // (those routes manage season prize/duration and aren't behind a user's
+  // Telegram-initData JWT — only the bot process should ever call them,
+  // after checking the caller is a channel administrator itself).
+  ADMIN_API_SECRET: z.string().min(16, "ADMIN_API_SECRET must be at least 16 characters"),
 });
 
 function loadEnv() {

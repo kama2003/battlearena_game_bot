@@ -173,8 +173,7 @@ export interface SeasonResponse {
   startsAt: string;
   endsAt: string;
   daysRemaining: number;
-  prizeFund: number;
-  prizeCurrency: string;
+  prizeDescription: string;
   participants: number;
   personalBest: number;
 }

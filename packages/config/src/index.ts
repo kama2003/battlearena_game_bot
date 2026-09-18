@@ -14,9 +14,8 @@ export const GAME_BALANCE = {
   taskBonusAttempts: 1,
   /** Length of a season in days. */
   seasonDurationDays: 14,
-  /** Default prize fund shown for the active season (display only). */
-  defaultPrizeFund: 10_000,
-  defaultPrizeCurrency: "RUB",
+  /** Default prize description for a newly rotated season (display only, admin sets the real one via the bot). */
+  defaultPrizeDescription: "10 000 ₽",
   /**
    * Anti-cheat: a human cannot sustain more than this many taps per second
    * for a full round. Used as a server-side sanity ceiling on submitted
