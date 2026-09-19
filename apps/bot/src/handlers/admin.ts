@@ -261,7 +261,7 @@ export async function handleAdminCallback(ctx: Context): Promise<void> {
   if (!data?.startsWith("admin:") || !userId) return;
 
   if (!(await isChannelAdmin(ctx.api, userId))) {
-    await ctx.answerCallbackQuery({ text: "Нет прав администратора канала.", show_alert: true });
+    await ctx.answerCallbackQuery(); // no text: don't confirm the buttons do anything
     return;
   }
 
