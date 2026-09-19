@@ -10,6 +10,7 @@ interface SeasonSummary {
   prizeDescription: string;
   endsAt: string;
   daysRemaining: number;
+  leaders?: { rank: number; firstName: string; username: string | null; score: number }[];
 }
 
 const DAY_PRESETS = [3, 7, 14, 21, 30];
@@ -61,12 +62,27 @@ function formatTimeLeft(endsAtIso: string): string {
   return hours === 0 ? `${days} дн.` : `${days} дн. ${hours} ч.`;
 }
 
+function leaderName(l: { username: string | null; firstName: string }): string {
+  return l.username ? `@${l.username}` : l.firstName;
+}
+
+function formatLeaders(leaders: SeasonSummary["leaders"]): string {
+  const [first, second] = leaders ?? [];
+  if (!first) return "\n\n👑 Лидера пока нет — никто ещё не играл.";
+  const tie =
+    second && second.score === first.score
+      ? "\n⚖️ Ничья по баллам — выигрывает тот, кто набрал их раньше."
+      : "";
+  const table = (leaders ?? []).map((l) => `${l.rank}. ${leaderName(l)} — ${l.score}`).join("\n");
+  return `\n\n👑 Побеждает сейчас: ${leaderName(first)}\n${table}${tie}`;
+}
+
 function formatSeason(season: SeasonSummary): string {
   const endsAt = new Date(season.endsAt).toLocaleDateString("ru-RU", {
     day: "numeric",
     month: "long",
   });
-  return `⚙️ ${season.name}\n🎁 Приз: ${season.prizeDescription}\n⏳ Осталось: ${formatTimeLeft(season.endsAt)} (до ${endsAt})`;
+  return `⚙️ ${season.name}\n🎁 Приз: ${season.prizeDescription}\n⏳ Осталось: ${formatTimeLeft(season.endsAt)} (до ${endsAt})${formatLeaders(season.leaders)}`;
 }
 
 export async function handleAdmin(ctx: Context): Promise<void> {
@@ -165,7 +181,7 @@ async function applyCheckWinner(ctx: Context): Promise<void> {
       : "Участников с результатами не было.";
     await ctx.reply(
       `🏁 ${result.endedSeason?.name} завершён. ${winnerLine}\n\n` +
-        `Объявление уже отправлено в канал, призёры уведомлены в личку.`,
+        `Объявление отправлено в канал, победителю написали в личку.`,
       { reply_markup: adminMenuKeyboard() },
     );
   } catch (error) {

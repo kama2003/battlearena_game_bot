@@ -21,8 +21,30 @@ export interface FinalizeSeasonResult {
   winners?: SeasonWinner[];
 }
 
-const TOP_N_WINNERS = 3;
-const RANK_EMOJI: Record<number, string> = { 1: "🥇", 2: "🥈", 3: "🥉" };
+/** One prize, one winner. */
+const TOP_N_WINNERS = 1;
+
+/**
+ * Season standings: highest bestScore first; on equal points, whoever
+ * reached that score earlier ranks higher (userId only makes it fully
+ * deterministic in the vanishing case of an identical timestamp).
+ */
+export async function getSeasonLeaders(seasonId: string, take: number): Promise<SeasonWinner[]> {
+  const rows = await prisma.seasonScore.findMany({
+    where: { seasonId },
+    orderBy: [{ bestScore: "desc" }, { bestScoreAt: "asc" }, { userId: "asc" }],
+    take,
+    include: { user: true },
+  });
+  return rows.map((entry, index) => ({
+    userId: entry.userId,
+    telegramId: entry.user.telegramId,
+    firstName: entry.user.firstName,
+    username: entry.user.username,
+    rank: index + 1,
+    score: entry.bestScore,
+  }));
+}
 
 function daysBetween(from: number, to: number): number {
   return Math.max(0, Math.floor((to - from) / (24 * 60 * 60 * 1000)));
@@ -46,18 +68,16 @@ async function announceSeasonResults(
   endedSeason: { name: string; prizeDescription: string },
   winners: SeasonWinner[],
 ): Promise<void> {
-  if (winners.length === 0) return;
+  const winner = winners[0];
+  if (!winner) return;
 
-  const lines = winners.map((w) => {
-    const name = w.username ? `@${w.username}` : w.firstName;
-    return `${RANK_EMOJI[w.rank] ?? `${w.rank}.`} ${name} — ${w.score} очков`;
-  });
+  const name = winner.username ? `@${winner.username}` : winner.firstName;
   const announcement = [
     `🏁 ${endedSeason.name} завершён!`,
     "",
-    ...lines,
+    `🏆 Победитель: ${name} — ${winner.score} очков`,
     "",
-    `🎁 Приз победителю: ${endedSeason.prizeDescription}`,
+    `🎁 Приз: ${endedSeason.prizeDescription}`,
   ].join("\n");
 
   try {
@@ -66,20 +86,16 @@ async function announceSeasonResults(
     console.error("Failed to post season results to the channel:", error);
   }
 
-  for (const winner of winners) {
-    const text =
-      winner.rank === 1
-        ? `🏆 Поздравляем! Ты — победитель ${endedSeason.name} с результатом ${winner.score}!\n\n` +
-          `Твой приз: ${endedSeason.prizeDescription} 🎉\nС тобой свяжутся организаторы канала.`
-        : `${RANK_EMOJI[winner.rank] ?? ""} Поздравляем! Ты занял ${winner.rank} место в ${endedSeason.name} ` +
-          `с результатом ${winner.score}. Отличная игра!`;
-    try {
-      await sendTelegramMessage(Number(winner.telegramId), text);
-    } catch (error) {
-      // Most likely the user never opened a DM with the bot — nothing to
-      // recover from, just don't let one failure block the rest.
-      console.error(`Failed to notify winner ${winner.telegramId}:`, error);
-    }
+  try {
+    await sendTelegramMessage(
+      Number(winner.telegramId),
+      `🏆 Поздравляем! Ты — победитель ${endedSeason.name} с результатом ${winner.score}!\n\n` +
+        `Твой приз: ${endedSeason.prizeDescription} 🎉\nС тобой свяжутся организаторы канала.`,
+    );
+  } catch (error) {
+    // Most likely the winner never opened a DM with the bot; the channel
+    // post and the /checkwinner reply still name them.
+    console.error(`Failed to notify winner ${winner.telegramId}:`, error);
   }
 }
 
@@ -124,20 +140,7 @@ async function rotateIfExpired(now: Date): Promise<{
     // Fall through and create one ourselves rather than return nothing.
   }
 
-  const topScores = await prisma.seasonScore.findMany({
-    where: { seasonId: active.id },
-    orderBy: { bestScore: "desc" },
-    take: TOP_N_WINNERS,
-    include: { user: true },
-  });
-  const winners: SeasonWinner[] = topScores.map((entry, index) => ({
-    userId: entry.userId,
-    telegramId: entry.user.telegramId,
-    firstName: entry.user.firstName,
-    username: entry.user.username,
-    rank: index + 1,
-    score: entry.bestScore,
-  }));
+  const winners = await getSeasonLeaders(active.id, TOP_N_WINNERS);
 
   const newSeason = await createNextSeason(active.number, now);
   const endedSeason = { name: active.name, prizeDescription: active.prizeDescription };

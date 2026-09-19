@@ -165,7 +165,7 @@ export async function finishGame(
     if (current && score > current.bestScore) {
       await tx.seasonScore.update({
         where: { userId_seasonId: { userId: user.id, seasonId: season.id } },
-        data: { bestScore: score },
+        data: { bestScore: score, bestScoreAt: now },
       });
     }
 

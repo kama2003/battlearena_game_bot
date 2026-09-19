@@ -3,7 +3,12 @@ import { z } from "zod";
 import { env } from "../../config/env";
 import { prisma } from "../../lib/prisma";
 import { AwardPointsError, awardPoints } from "./points";
-import { cancelCurrentSeason, finalizeSeasonIfExpired, getOrRotateCurrentSeason } from "../seasons/service";
+import {
+  cancelCurrentSeason,
+  finalizeSeasonIfExpired,
+  getOrRotateCurrentSeason,
+  getSeasonLeaders,
+} from "../seasons/service";
 
 const updateSeasonSchema = z
   .object({
@@ -50,7 +55,16 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
 
   app.get("/api/admin/season", async () => {
     const season = await getOrRotateCurrentSeason();
-    return seasonSummary(season);
+    const leaders = await getSeasonLeaders(season.id, 3);
+    return {
+      ...seasonSummary(season),
+      leaders: leaders.map((l) => ({
+        rank: l.rank,
+        firstName: l.firstName,
+        username: l.username,
+        score: l.score,
+      })),
+    };
   });
 
   app.patch("/api/admin/season", async (request, reply) => {

@@ -104,7 +104,7 @@ async function getSeasonLeaderboard(seasonId: string, userId: string, page: numb
   const [rows, total, mine] = await Promise.all([
     prisma.seasonScore.findMany({
       where: { seasonId },
-      orderBy: { bestScore: "desc" },
+      orderBy: [{ bestScore: "desc" }, { bestScoreAt: "asc" }, { userId: "asc" }],
       skip: offset,
       take: PAGE_SIZE,
       include: { user: { select: { username: true, firstName: true, photoUrl: true } } },
@@ -126,7 +126,13 @@ async function getSeasonLeaderboard(seasonId: string, userId: string, page: numb
   let current: LeaderboardEntryDto | null = null;
   if (mine) {
     const higherCount = await prisma.seasonScore.count({
-      where: { seasonId, bestScore: { gt: mine.bestScore } },
+      where: {
+        seasonId,
+        OR: [
+          { bestScore: { gt: mine.bestScore } },
+          { bestScore: mine.bestScore, bestScoreAt: { lt: mine.bestScoreAt } },
+        ],
+      },
     });
     const user = await prisma.user.findUnique({
       where: { id: userId },

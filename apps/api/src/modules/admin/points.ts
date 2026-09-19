@@ -55,12 +55,23 @@ export async function awardPoints(
     return tx.seasonScore.upsert({
       where: { userId_seasonId: { userId: user.id, seasonId: season.id } },
       create: { userId: user.id, seasonId: season.id, bestScore, totalScore, gamesPlayed: 0 },
-      update: { bestScore, totalScore },
+      update: {
+        bestScore,
+        totalScore,
+        // Only a real change moves the tie-break time; re-applying the same value shouldn't.
+        ...(bestScore !== current?.bestScore && { bestScoreAt: new Date() }),
+      },
     });
   });
 
   const higher = await prisma.seasonScore.count({
-    where: { seasonId: season.id, bestScore: { gt: updated.bestScore } },
+    where: {
+      seasonId: season.id,
+      OR: [
+        { bestScore: { gt: updated.bestScore } },
+        { bestScore: updated.bestScore, bestScoreAt: { lt: updated.bestScoreAt } },
+      ],
+    },
   });
 
   const sign = points > 0 ? "начислено" : "списано";
