@@ -19,7 +19,7 @@ function seasonSummary(season: { name: string; prizeDescription: string; endsAt:
     name: season.name,
     prizeDescription: season.prizeDescription,
     endsAt: season.endsAt.toISOString(),
-    daysRemaining: Math.max(0, Math.ceil((season.endsAt.getTime() - Date.now()) / (24 * 60 * 60 * 1000))),
+    daysRemaining: Math.max(0, Math.floor((season.endsAt.getTime() - Date.now()) / (24 * 60 * 60 * 1000))),
   };
 }
 

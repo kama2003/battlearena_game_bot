@@ -50,12 +50,21 @@ function cancelSeasonConfirmKeyboard(): InlineKeyboard {
     .text("Не надо", "admin:cancelinput");
 }
 
+function formatTimeLeft(endsAtIso: string): string {
+  const ms = new Date(endsAtIso).getTime() - Date.now();
+  if (ms <= 0) return "срок вышел";
+  const days = Math.floor(ms / 86_400_000);
+  const hours = Math.floor((ms % 86_400_000) / 3_600_000);
+  if (days === 0) return hours === 0 ? "меньше часа" : `${hours} ч.`;
+  return hours === 0 ? `${days} дн.` : `${days} дн. ${hours} ч.`;
+}
+
 function formatSeason(season: SeasonSummary): string {
   const endsAt = new Date(season.endsAt).toLocaleDateString("ru-RU", {
     day: "numeric",
     month: "long",
   });
-  return `⚙️ ${season.name}\n🎁 Приз: ${season.prizeDescription}\n⏳ Осталось: ${season.daysRemaining} дн. (до ${endsAt})`;
+  return `⚙️ ${season.name}\n🎁 Приз: ${season.prizeDescription}\n⏳ Осталось: ${formatTimeLeft(season.endsAt)} (до ${endsAt})`;
 }
 
 export async function handleAdmin(ctx: Context): Promise<void> {
@@ -101,7 +110,8 @@ async function applyCheckWinner(ctx: Context): Promise<void> {
   try {
     const result = await checkAndAnnounceSeasonEnd();
     if (!result.finalized) {
-      await ctx.reply(`Сезон ещё не закончился — осталось ${result.daysRemaining} дн.`, {
+      const left = result.daysRemaining ? `${result.daysRemaining} дн.` : "меньше суток";
+      await ctx.reply(`Сезон ещё не закончился — осталось ${left}.`, {
         reply_markup: adminMenuKeyboard(),
       });
       return;
@@ -129,7 +139,7 @@ async function applyCancelSeason(ctx: Context): Promise<void> {
     await ctx.reply(
       `Сезон${cancelledPart} отменён без объявления победителя.\n\n` +
         `Начат новый: ${result.newSeason.name} (приз: ${result.newSeason.prizeDescription}, ` +
-        `${result.newSeason.daysRemaining} дн.).\nУ всех игроков снова доступны попытки.`,
+        `${formatTimeLeft(result.newSeason.endsAt)}).\nУ всех игроков снова доступны попытки.`,
       { reply_markup: adminMenuKeyboard() },
     );
   } catch (error) {

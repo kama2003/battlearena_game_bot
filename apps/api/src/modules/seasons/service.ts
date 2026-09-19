@@ -25,7 +25,7 @@ const TOP_N_WINNERS = 3;
 const RANK_EMOJI: Record<number, string> = { 1: "🥇", 2: "🥈", 3: "🥉" };
 
 function daysBetween(from: number, to: number): number {
-  return Math.max(0, Math.ceil((to - from) / (24 * 60 * 60 * 1000)));
+  return Math.max(0, Math.floor((to - from) / (24 * 60 * 60 * 1000)));
 }
 
 async function createNextSeason(afterNumber: number, startsAt: Date) {
@@ -215,7 +215,7 @@ export async function buildSeasonResponse(season: Season, userId: string): Promi
 
   const daysRemaining = Math.max(
     0,
-    Math.ceil((season.endsAt.getTime() - Date.now()) / (24 * 60 * 60 * 1000)),
+    Math.floor((season.endsAt.getTime() - Date.now()) / (24 * 60 * 60 * 1000)),
   );
 
   return {

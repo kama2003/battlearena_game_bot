@@ -34,7 +34,12 @@ export function HomePage() {
         <div className="flex items-center justify-between">
           <p className="text-[20px] font-semibold text-primary">{season.data?.name ?? "Сезон"}</p>
           <Badge variant="neutral">
-            До конца: {season.data ? `${season.data.daysRemaining} дн.` : "…"}
+            До конца:{" "}
+            {season.data
+              ? season.data.daysRemaining > 0
+                ? `${season.data.daysRemaining} дн.`
+                : "меньше суток"
+              : "…"}
           </Badge>
         </div>
 
