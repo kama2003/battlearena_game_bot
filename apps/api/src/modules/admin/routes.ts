@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { env } from "../../config/env";
 import { prisma } from "../../lib/prisma";
+import { AwardPointsError, awardPoints } from "./points";
 import { cancelCurrentSeason, finalizeSeasonIfExpired, getOrRotateCurrentSeason } from "../seasons/service";
 
 const updateSeasonSchema = z
@@ -12,6 +13,16 @@ const updateSeasonSchema = z
   })
   .refine((data) => data.prizeDescription !== undefined || data.days !== undefined, {
     message: "Provide at least one of prizeDescription or days",
+  });
+
+const awardPointsSchema = z
+  .object({
+    username: z.string().trim().min(1).max(64).optional(),
+    telegramId: z.string().regex(/^d+$/).optional(),
+    points: z.number().int().refine((n) => n !== 0, "points must not be 0").refine((n) => Math.abs(n) <= 100000),
+  })
+  .refine((d) => d.username !== undefined || d.telegramId !== undefined, {
+    message: "Provide username or telegramId",
   });
 
 function seasonSummary(season: { name: string; prizeDescription: string; endsAt: Date }) {
@@ -80,5 +91,25 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       cancelledSeasonName: result.cancelledSeasonName,
       newSeason: seasonSummary(result.newSeason),
     };
+  });
+
+  app.post("/api/admin/points", async (request, reply) => {
+    const parsed = awardPointsSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply
+        .code(400)
+        .send({ error: { code: "VALIDATION_ERROR", message: parsed.error.message } });
+    }
+    try {
+      const { username, telegramId, points } = parsed.data;
+      return await awardPoints({ username, telegramId }, points);
+    } catch (error) {
+      if (error instanceof AwardPointsError) {
+        return reply
+          .code(error.statusCode)
+          .send({ error: { code: "AWARD_FAILED", message: error.message } });
+      }
+      throw error;
+    }
   });
 }

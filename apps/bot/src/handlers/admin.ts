@@ -26,6 +26,8 @@ function adminMenuKeyboard(): InlineKeyboard {
     .text("💰 Изменить приз", "admin:setprize")
     .text("📅 Изменить срок", "admin:setdays")
     .row()
+    .text("⭐ Начислить баллы", "admin:points")
+    .row()
     .text("🏆 Проверить победителя", "admin:checkwinner")
     .row()
     .text("❌ Отменить сезон", "admin:cancelseason");
@@ -106,6 +108,48 @@ async function applySetDays(ctx: Context, days: number): Promise<void> {
   }
 }
 
+const POINTS_HINT =
+  "Напиши ник и число баллов одним сообщением, например:\n@ivkama03 50\n\n" +
+  "Отрицательное число спишет баллы (@ivkama03 -20). Можно и числовой Telegram ID вместо ника.";
+
+function parsePointsInput(
+  text: string,
+): { username?: string; telegramId?: string; points: number } | null {
+  const match = text.trim().match(/^@?(\S+)\s+([+-]?\d+)$/);
+  if (!match) return null;
+  const [, who, amount] = match;
+  const points = Number(amount);
+  if (!who || !Number.isInteger(points) || points === 0) return null;
+  return /^\d+$/.test(who) ? { telegramId: who, points } : { username: who, points };
+}
+
+async function applyAwardPoints(ctx: Context, text: string): Promise<void> {
+  const parsed = parsePointsInput(text);
+  if (!parsed) {
+    await ctx.reply(`Не понял. ${POINTS_HINT}`, { reply_markup: cancelInputKeyboard() });
+    return;
+  }
+  try {
+    const result = await callAdminApi<{
+      firstName: string;
+      username: string | null;
+      seasonName: string;
+      bestScore: number;
+      rank: number;
+    }>("/api/admin/points", { method: "POST", body: parsed });
+    const who = result.username ? `@${result.username}` : result.firstName;
+    await ctx.reply(
+      `Готово! ${who}: ${parsed.points > 0 ? "+" : ""}${parsed.points} баллов в ${result.seasonName}.\n` +
+        `Теперь ${result.bestScore} баллов, ${result.rank}-е место.`,
+      { reply_markup: adminMenuKeyboard() },
+    );
+  } catch (error) {
+    await ctx.reply(`Не удалось начислить баллы: ${errorMessage(error)}`, {
+      reply_markup: adminMenuKeyboard(),
+    });
+  }
+}
+
 async function applyCheckWinner(ctx: Context): Promise<void> {
   try {
     const result = await checkAndAnnounceSeasonEnd();
@@ -170,6 +214,18 @@ export async function handleSetDays(ctx: Context): Promise<void> {
   await applySetDays(ctx, days);
 }
 
+export async function handleAddPoints(ctx: Context): Promise<void> {
+  if (!(await requireAdmin(ctx))) return;
+  const text = ctx.match?.toString().trim();
+  if (!text) {
+    await ctx.reply(`Использование: /addpoints @ник 50
+
+${POINTS_HINT}`);
+    return;
+  }
+  await applyAwardPoints(ctx, text);
+}
+
 export async function handleCheckWinner(ctx: Context): Promise<void> {
   if (!(await requireAdmin(ctx))) return;
   await applyCheckWinner(ctx);
@@ -201,6 +257,12 @@ export async function handleAdminCallback(ctx: Context): Promise<void> {
     await ctx.reply("Напиши новый приз одним сообщением (например: iPhone 16 Pro).", {
       reply_markup: cancelInputKeyboard(),
     });
+    return;
+  }
+
+  if (action === "points") {
+    setPendingAdminInput(userId, "points");
+    await ctx.reply(POINTS_HINT, { reply_markup: cancelInputKeyboard() });
     return;
   }
 
@@ -262,6 +324,11 @@ export async function handleAdminTextInput(ctx: Context): Promise<void> {
 
   if (pending === "prize") {
     await applySetPrize(ctx, text);
+    return;
+  }
+
+  if (pending === "points") {
+    await applyAwardPoints(ctx, text);
     return;
   }
 
