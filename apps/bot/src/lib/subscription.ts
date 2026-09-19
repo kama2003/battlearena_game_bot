@@ -17,11 +17,15 @@ export async function isSubscribed(api: Api, userId: number): Promise<boolean> {
   }
 }
 
-/** Gates the /admin, /setprize, /setdays commands to actual channel admins. */
+/**
+ * Gates every /admin action to the channel's creator only — not to its other
+ * administrators, so admin rights in the channel don't double as control of
+ * the prize and the season.
+ */
 export async function isChannelAdmin(api: Api, userId: number): Promise<boolean> {
   try {
     const member = await api.getChatMember(`@${env.CHANNEL_USERNAME}`, userId);
-    return ["creator", "administrator"].includes(member.status);
+    return member.status === "creator";
   } catch {
     return false;
   }

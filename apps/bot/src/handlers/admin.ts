@@ -18,7 +18,7 @@ const DAY_PRESETS = [3, 7, 14, 21, 30];
 async function requireAdmin(ctx: Context): Promise<boolean> {
   const userId = ctx.from?.id;
   if (userId && (await isChannelAdmin(ctx.api, userId))) return true;
-  await ctx.reply("У тебя нет прав администратора канала.");
+  // Stay silent for everyone else so the commands look like they don't exist.
   return false;
 }
 
