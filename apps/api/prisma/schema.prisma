@@ -117,7 +117,13 @@ model SeasonScore {
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   seasonId    String
   season      Season   @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  /// Effective season score: roundBest + bonusPoints (never below 0). What season rankings sort by.
   bestScore   Int      @default(0)
+  /// Best single round this season, from actual play.
+  roundBest   Int      @default(0)
+  /// Net points an admin awarded (or deducted) — counted on the Day/Week/Season boards alike.
+  bonusPoints Int      @default(0)
+  bonusUpdatedAt DateTime?
   totalScore  Int      @default(0)
   gamesPlayed Int      @default(0)
   /// When bestScore last changed — breaks ties: equal points, earlier wins.

@@ -21,11 +21,11 @@ export interface AwardPointsResult {
 }
 
 /**
- * Adds (or, with a negative amount, removes) points from a participant's
- * score in the current season. The season leaderboard — the one that decides
- * the prize — ranks by bestScore, so that's what moves; totalScore follows.
- * Neither goes below zero. Day/week boards are built from actual rounds
- * played, so an admin adjustment intentionally doesn't appear there.
+ * Adds (or, with a negative amount, removes) points on a participant's score
+ * in the current season. The points are kept as a separate bonus on top of
+ * their best round (SeasonScore.bonusPoints), and that bonus counts on the
+ * Day, Week and Season boards alike — so the number an admin sets is the
+ * number everyone sees, everywhere. The resulting score never goes below zero.
  */
 export async function awardPoints(
   target: { username?: string; telegramId?: string },
@@ -53,17 +53,31 @@ export async function awardPoints(
     const current = await tx.seasonScore.findUnique({
       where: { userId_seasonId: { userId: user.id, seasonId: season.id } },
     });
-    const bestScore = Math.max(0, (current?.bestScore ?? 0) + points);
+    const roundBest = current?.roundBest ?? 0;
+    const bonusPoints = (current?.bonusPoints ?? 0) + points;
+    const bestScore = Math.max(0, roundBest + bonusPoints);
     const totalScore = Math.max(0, (current?.totalScore ?? 0) + points);
+    const now = new Date();
 
     return tx.seasonScore.upsert({
       where: { userId_seasonId: { userId: user.id, seasonId: season.id } },
-      create: { userId: user.id, seasonId: season.id, bestScore, totalScore, gamesPlayed: 0 },
+      create: {
+        userId: user.id,
+        seasonId: season.id,
+        bestScore,
+        roundBest,
+        bonusPoints,
+        bonusUpdatedAt: now,
+        totalScore,
+        gamesPlayed: 0,
+      },
       update: {
         bestScore,
+        bonusPoints,
+        bonusUpdatedAt: now,
         totalScore,
         // Only a real change moves the tie-break time; re-applying the same value shouldn't.
-        ...(bestScore !== current?.bestScore && { bestScoreAt: new Date() }),
+        ...(bestScore !== current?.bestScore && { bestScoreAt: now }),
       },
     });
   });

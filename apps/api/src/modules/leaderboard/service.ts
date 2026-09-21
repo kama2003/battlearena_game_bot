@@ -2,6 +2,7 @@ import { prisma } from "../../lib/prisma";
 import { GAME_BALANCE } from "@battle/config";
 import type { LeaderboardEntryDto, LeaderboardPeriod, LeaderboardResponse } from "@battle/types";
 import { getCurrentSeason } from "../seasons/service";
+import { windowedScoresSql } from "./sql";
 import { startOfUtcDay, endOfUtcDay, startOfUtcWeek, endOfUtcWeek } from "../../lib/dates";
 
 interface RankedRow {
@@ -34,14 +35,10 @@ async function getWindowedLeaderboard(
   page: number,
 ): Promise<LeaderboardPage> {
   const offset = (page - 1) * PAGE_SIZE;
+  const scores = windowedScoresSql(seasonId, range);
 
   const rows = await prisma.$queryRaw<RankedRow[]>`
-    WITH scores AS (
-      SELECT "userId", MAX(score) AS score
-      FROM "GameResult"
-      WHERE "seasonId" = ${seasonId} AND "createdAt" >= ${range.from} AND "createdAt" < ${range.to}
-      GROUP BY "userId"
-    ),
+    WITH scores AS (${scores}),
     ranked AS (
       SELECT s."userId", s.score, RANK() OVER (ORDER BY s.score DESC) AS rank
       FROM scores s
@@ -54,22 +51,11 @@ async function getWindowedLeaderboard(
   `;
 
   const countRows = await prisma.$queryRaw<{ count: bigint }[]>`
-    SELECT COUNT(*)::bigint AS count
-    FROM (
-      SELECT "userId"
-      FROM "GameResult"
-      WHERE "seasonId" = ${seasonId} AND "createdAt" >= ${range.from} AND "createdAt" < ${range.to}
-      GROUP BY "userId"
-    ) t;
+    SELECT COUNT(*)::bigint AS count FROM (${scores}) t;
   `;
 
   const currentRows = await prisma.$queryRaw<RankedRow[]>`
-    WITH scores AS (
-      SELECT "userId", MAX(score) AS score
-      FROM "GameResult"
-      WHERE "seasonId" = ${seasonId} AND "createdAt" >= ${range.from} AND "createdAt" < ${range.to}
-      GROUP BY "userId"
-    ),
+    WITH scores AS (${scores}),
     ranked AS (
       SELECT s."userId", s.score, RANK() OVER (ORDER BY s.score DESC) AS rank
       FROM scores s
@@ -197,8 +183,7 @@ export async function getUserDayRank(
 
   const maxScoreRows = await prisma.$queryRaw<{ maxScore: number | null }[]>`
     SELECT MAX(score)::int AS "maxScore"
-    FROM "GameResult"
-    WHERE "seasonId" = ${season.id} AND "createdAt" >= ${startOfUtcDay()} AND "createdAt" < ${endOfUtcDay()};
+    FROM (${windowedScoresSql(season.id, { from: startOfUtcDay(), to: endOfUtcDay() })}) t;
   `;
 
   return { rank: current?.rank ?? null, dayBestScore: maxScoreRows[0]?.maxScore ?? 0 };

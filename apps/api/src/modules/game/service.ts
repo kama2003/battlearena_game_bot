@@ -8,6 +8,7 @@ import { startOfUtcDay, endOfUtcDay, msUntilNextUtcMidnight } from "../../lib/da
 import { getCurrentSeason } from "../seasons/service";
 import { isSeasonRunning } from "../seasons/state";
 import { getUserDayRank } from "../leaderboard/service";
+import { windowedScoresSql } from "../leaderboard/sql";
 
 export class GameError extends Error {
   constructor(
@@ -161,21 +162,33 @@ export async function finishGame(
 
     await tx.seasonScore.upsert({
       where: { userId_seasonId: { userId: user.id, seasonId: season.id } },
-      create: { userId: user.id, seasonId: season.id, bestScore: score, totalScore: score, gamesPlayed: 1 },
+      create: {
+        userId: user.id,
+        seasonId: season.id,
+        bestScore: score,
+        roundBest: score,
+        totalScore: score,
+        gamesPlayed: 1,
+      },
       update: {
         totalScore: { increment: score },
         gamesPlayed: { increment: 1 },
       },
     });
 
-    // bestScore needs a read-then-write max(), Prisma has no atomic MAX update.
+    // roundBest needs a read-then-write max(), Prisma has no atomic MAX update.
+    // bestScore is roundBest plus any admin bonus, so a bonus survives later rounds.
     const current = await tx.seasonScore.findUnique({
       where: { userId_seasonId: { userId: user.id, seasonId: season.id } },
     });
-    if (current && score > current.bestScore) {
+    if (current && score > current.roundBest) {
       await tx.seasonScore.update({
         where: { userId_seasonId: { userId: user.id, seasonId: season.id } },
-        data: { bestScore: score, bestScoreAt: now },
+        data: {
+          roundBest: score,
+          bestScore: Math.max(0, score + current.bonusPoints),
+          bestScoreAt: now,
+        },
       });
     }
 
@@ -239,14 +252,10 @@ export async function finishGame(
 
 async function getTop10Threshold(seasonId: string): Promise<number | null> {
   const rows = await prisma.$queryRaw<{ score: number }[]>`
-    SELECT MAX(score)::int AS score FROM (
-      SELECT "userId", MAX(score) AS score
-      FROM "GameResult"
-      WHERE "seasonId" = ${seasonId} AND "createdAt" >= ${startOfUtcDay()} AND "createdAt" < ${endOfUtcDay()}
-      GROUP BY "userId"
-      ORDER BY score DESC
-      OFFSET 9 LIMIT 1
-    ) t;
+    SELECT score::int AS score
+    FROM (${windowedScoresSql(seasonId, { from: startOfUtcDay(), to: endOfUtcDay() })}) s
+    ORDER BY score DESC
+    OFFSET 9 LIMIT 1;
   `;
   return rows[0]?.score ?? null;
 }
