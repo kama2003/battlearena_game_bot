@@ -20,7 +20,7 @@ vi.mock("../../lib/prisma", () => ({
 }));
 
 vi.mock("../seasons/service", () => ({
-  getOrRotateCurrentSeason: vi.fn(async () => ({ id: "season-1" })),
+  getCurrentSeason: vi.fn(async () => ({ id: "season-1" })),
 }));
 
 const { getLeaderboard } = await import("./service");

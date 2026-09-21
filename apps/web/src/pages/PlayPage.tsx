@@ -5,6 +5,7 @@ import { X } from "lucide-react";
 import { Button, IconButton, useToast } from "@battle/ui";
 import { useAttempts, useFinishGame, usePlayChallenge, useStartGame } from "../hooks/useGame";
 import { useChallenge } from "../hooks/useChallenge";
+import { useSeason } from "../hooks/useSeason";
 import { hapticImpact, hapticNotify } from "../lib/telegram";
 import { ApiError } from "../lib/apiClient";
 
@@ -16,6 +17,7 @@ export function PlayPage() {
   const challengeId = params.get("challengeId") ?? undefined;
 
   const { data: attempts } = useAttempts();
+  const season = useSeason();
   const { data: challenge } = useChallenge(challengeId);
   const startGame = useStartGame();
   const playChallenge = usePlayChallenge();
@@ -128,6 +130,26 @@ export function PlayPage() {
         <p className="text-[13px] text-secondary">
           {phase === "finishing" ? "Сохраняем результат..." : "Нажимай как можно быстрее"}
         </p>
+      </div>
+    );
+  }
+
+  if (season.data?.status === "ended") {
+    return (
+      <div className="relative flex min-h-[100dvh] flex-col items-center justify-center gap-3 bg-background px-6 text-center">
+        <IconButton
+          icon={<X size={20} />}
+          aria-label="Закрыть"
+          onClick={() => navigate("/home")}
+          className="absolute left-4 top-[max(1rem,env(safe-area-inset-top))]"
+        />
+        <p className="text-[22px] font-semibold text-primary">Сезон завершён</p>
+        <p className="max-w-[280px] text-[15px] text-secondary">
+          Новый сезон скоро начнётся — мы объявим об этом в канале.
+        </p>
+        <Button size="lg" variant="secondary" className="mt-6" onClick={() => navigate("/leaderboard")}>
+          Итоговый рейтинг
+        </Button>
       </div>
     );
   }

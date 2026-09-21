@@ -5,7 +5,8 @@ import { env } from "../../config/env";
 import { GAME_BALANCE } from "@battle/config";
 import type { GameAttemptsResponse, GameFinishResponse, GameStartResponse } from "@battle/types";
 import { startOfUtcDay, endOfUtcDay, msUntilNextUtcMidnight } from "../../lib/dates";
-import { getOrRotateCurrentSeason } from "../seasons/service";
+import { getCurrentSeason } from "../seasons/service";
+import { isSeasonRunning } from "../seasons/state";
 import { getUserDayRank } from "../leaderboard/service";
 
 export class GameError extends Error {
@@ -40,7 +41,7 @@ async function countFinishedInWindow(userId: string, seasonId: string, windowSta
 }
 
 export async function getAttemptsInfo(user: User): Promise<GameAttemptsResponse> {
-  const season = await getOrRotateCurrentSeason();
+  const season = await getCurrentSeason();
   const finishedToday = await countFinishedInWindow(user.id, season.id, attemptsWindowStart(season.startsAt));
   const freeRemaining = Math.max(0, env.DAILY_FREE_ATTEMPTS - finishedToday);
   const remaining = freeRemaining + user.bonusAttempts;
@@ -60,6 +61,10 @@ export async function getAttemptsInfo(user: User): Promise<GameAttemptsResponse>
  * time-boxed round.
  */
 export async function startGame(user: User, challengeId?: string): Promise<GameStartResponse> {
+  if (!isSeasonRunning(await getCurrentSeason())) {
+    throw new GameError("Сезон сейчас не идёт", "SEASON_NOT_RUNNING", 403);
+  }
+
   const { remaining } = await getAttemptsInfo(user);
   if (remaining <= 0) {
     throw new GameError("No attempts remaining today", "NO_ATTEMPTS", 403);
@@ -137,7 +142,12 @@ export async function finishGame(
   }
 
   const score = Math.min(submittedScore, MAX_PLAUSIBLE_SCORE);
-  const season = await getOrRotateCurrentSeason();
+  const season = await getCurrentSeason();
+  if (!isSeasonRunning(season)) {
+    // The season ended mid-round: its winner is already announced, so a late
+    // result must not change the standings.
+    throw new GameError("Сезон уже закончился", "SEASON_NOT_RUNNING", 409);
+  }
 
   await prisma.$transaction(async (tx) => {
     await tx.gameSession.update({

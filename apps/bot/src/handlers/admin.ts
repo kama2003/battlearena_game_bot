@@ -3,12 +3,21 @@ import type { Context } from "grammy";
 import { isChannelAdmin } from "../lib/subscription";
 import { AdminApiError, callAdminApi } from "../lib/apiClient";
 import { checkAndAnnounceSeasonEnd } from "../lib/seasonWatcher";
-import { setPendingAdminInput, takePendingAdminInput } from "../lib/adminState";
+import {
+  clearAdminInput,
+  setPendingAdminInput,
+  setStartPrize,
+  takePendingAdminInput,
+  takeStartPrize,
+} from "../lib/adminState";
+
+type SeasonStatus = "running" | "ended";
 
 interface SeasonSummary {
   name: string;
   prizeDescription: string;
   endsAt: string;
+  status: SeasonStatus;
   daysRemaining: number;
   leaders?: { rank: number; firstName: string; username: string | null; score: number }[];
 }
@@ -22,7 +31,13 @@ async function requireAdmin(ctx: Context): Promise<boolean> {
   return false;
 }
 
-function adminMenuKeyboard(): InlineKeyboard {
+function adminMenuKeyboard(status: SeasonStatus = "running"): InlineKeyboard {
+  if (status === "ended") {
+    return new InlineKeyboard()
+      .text("▶️ Начать новый сезон", "admin:startseason")
+      .row()
+      .text("🏆 Кто победил", "admin:checkwinner");
+  }
   return new InlineKeyboard()
     .text("💰 Изменить приз", "admin:setprize")
     .text("📅 Изменить срок", "admin:setdays")
@@ -34,13 +49,13 @@ function adminMenuKeyboard(): InlineKeyboard {
     .text("❌ Отменить сезон", "admin:cancelseason");
 }
 
-function daysKeyboard(): InlineKeyboard {
+function daysKeyboard(prefix: "setdays" | "startdays"): InlineKeyboard {
   const kb = new InlineKeyboard();
   DAY_PRESETS.forEach((d, i) => {
-    kb.text(`${d} дн.`, `admin:setdays:${d}`);
+    kb.text(`${d} дн.`, `admin:${prefix}:${d}`);
     if ((i + 1) % 3 === 0) kb.row();
   });
-  return kb.row().text("✏️ Своё число", "admin:setdays:custom").text("Отмена", "admin:cancelinput");
+  return kb.row().text("✏️ Своё число", `admin:${prefix}:custom`).text("Отмена", "admin:cancelinput");
 }
 
 function cancelInputKeyboard(): InlineKeyboard {
@@ -78,6 +93,16 @@ function formatLeaders(leaders: SeasonSummary["leaders"]): string {
 }
 
 function formatSeason(season: SeasonSummary): string {
+  if (season.status === "ended") {
+    const winner = season.leaders?.[0];
+    const winnerLine = winner
+      ? `🏆 Победитель: ${leaderName(winner)} — ${winner.score}`
+      : "🏆 Победителя нет — никто не играл.";
+    return (
+      `⚙️ ${season.name} — завершён\n🎁 Приз: ${season.prizeDescription}\n${winnerLine}\n\n` +
+      `Нового сезона нет, игра закрыта. Запусти его кнопкой ниже.`
+    );
+  }
   const endsAt = new Date(season.endsAt).toLocaleDateString("ru-RU", {
     day: "numeric",
     month: "long",
@@ -89,7 +114,7 @@ export async function handleAdmin(ctx: Context): Promise<void> {
   if (!(await requireAdmin(ctx))) return;
   try {
     const season = await callAdminApi<SeasonSummary>("/api/admin/season");
-    await ctx.reply(formatSeason(season), { reply_markup: adminMenuKeyboard() });
+    await ctx.reply(formatSeason(season), { reply_markup: adminMenuKeyboard(season.status) });
   } catch (error) {
     await ctx.reply(`Не удалось получить данные сезона: ${errorMessage(error)}`);
   }
@@ -102,7 +127,7 @@ async function applySetPrize(ctx: Context, text: string): Promise<void> {
       body: { prizeDescription: text },
     });
     await ctx.reply(`Готово! Приз сезона: ${season.prizeDescription}`, {
-      reply_markup: adminMenuKeyboard(),
+      reply_markup: adminMenuKeyboard(season.status),
     });
   } catch (error) {
     await ctx.reply(`Не удалось обновить приз: ${errorMessage(error)}`);
@@ -117,7 +142,7 @@ async function applySetDays(ctx: Context, days: number): Promise<void> {
     });
     const endsAt = new Date(season.endsAt).toLocaleDateString("ru-RU");
     await ctx.reply(`Готово! Сезон "${season.name}" теперь заканчивается ${endsAt}.`, {
-      reply_markup: adminMenuKeyboard(),
+      reply_markup: adminMenuKeyboard(season.status),
     });
   } catch (error) {
     await ctx.reply(`Не удалось обновить срок: ${errorMessage(error)}`);
@@ -169,20 +194,24 @@ async function applyAwardPoints(ctx: Context, text: string): Promise<void> {
 async function applyCheckWinner(ctx: Context): Promise<void> {
   try {
     const result = await checkAndAnnounceSeasonEnd();
-    if (!result.finalized) {
+    if (result.state === "running") {
       const left = result.daysRemaining ? `${result.daysRemaining} дн.` : "меньше суток";
-      await ctx.reply(`Сезон ещё не закончился — осталось ${left}.`, {
-        reply_markup: adminMenuKeyboard(),
+      await ctx.reply(`Сезон ещё идёт — осталось ${left}.`, {
+        reply_markup: adminMenuKeyboard("running"),
       });
       return;
     }
-    const winnerLine = result.winners?.[0]
-      ? `Победитель: ${result.winners[0].username ? "@" + result.winners[0].username : result.winners[0].firstName} (${result.winners[0].score} очков).`
+
+    const winner = result.winners?.[0];
+    const winnerLine = winner
+      ? `Победитель: ${leaderName(winner)} (${winner.score} очков).`
       : "Участников с результатами не было.";
+    const tail = result.finalized
+      ? "Объявление отправлено в канал, победителю написали в личку."
+      : "Сезон уже был завершён раньше.";
     await ctx.reply(
-      `🏁 ${result.endedSeason?.name} завершён. ${winnerLine}\n\n` +
-        `Объявление отправлено в канал, победителю написали в личку.`,
-      { reply_markup: adminMenuKeyboard() },
+      `🏁 ${result.endedSeason?.name} завершён. ${winnerLine}\n\n${tail}\nНового сезона нет — запусти его кнопкой ниже.`,
+      { reply_markup: adminMenuKeyboard("ended") },
     );
   } catch (error) {
     await ctx.reply(`Не удалось проверить итоги сезона: ${errorMessage(error)}`);
@@ -191,20 +220,48 @@ async function applyCheckWinner(ctx: Context): Promise<void> {
 
 async function applyCancelSeason(ctx: Context): Promise<void> {
   try {
-    const result = await callAdminApi<{ cancelledSeasonName: string | null; newSeason: SeasonSummary }>(
+    const result = await callAdminApi<{ cancelledSeasonName: string | null }>(
       "/api/admin/season/cancel",
       { method: "POST" },
     );
-    const cancelledPart = result.cancelledSeasonName ? ` "${result.cancelledSeasonName}"` : "";
+    if (!result.cancelledSeasonName) {
+      await ctx.reply("Сезон и так не идёт.", { reply_markup: adminMenuKeyboard("ended") });
+      return;
+    }
     await ctx.reply(
-      `Сезон${cancelledPart} отменён без объявления победителя.\n\n` +
-        `Начат новый: ${result.newSeason.name} (приз: ${result.newSeason.prizeDescription}, ` +
-        `${formatTimeLeft(result.newSeason.endsAt)}).\nУ всех игроков снова доступны попытки.`,
-      { reply_markup: adminMenuKeyboard() },
+      `"${result.cancelledSeasonName}" отменён без объявления победителя.\n\n` +
+        `Нового сезона нет, игра закрыта. Запусти его кнопкой ниже, когда будешь готов.`,
+      { reply_markup: adminMenuKeyboard("ended") },
     );
   } catch (error) {
     await ctx.reply(`Не удалось отменить сезон: ${errorMessage(error)}`);
   }
+}
+
+async function applyStartSeason(ctx: Context, days: number, prizeDescription: string): Promise<void> {
+  try {
+    const season = await callAdminApi<SeasonSummary>("/api/admin/season/start", {
+      method: "POST",
+      body: { days, prizeDescription },
+    });
+    await ctx.reply(
+      `▶️ ${season.name} начался!\n🎁 Приз: ${season.prizeDescription}\n⏳ Длится: ${formatTimeLeft(season.endsAt)}\n\n` +
+        `Объявление отправлено в канал, у всех игроков свежие попытки.`,
+      { reply_markup: adminMenuKeyboard("running") },
+    );
+  } catch (error) {
+    await ctx.reply(`Не удалось начать сезон: ${errorMessage(error)}`, {
+      reply_markup: adminMenuKeyboard("ended"),
+    });
+  }
+}
+
+async function promptStartPrize(ctx: Context, userId: number): Promise<void> {
+  clearAdminInput(userId);
+  setPendingAdminInput(userId, "startprize");
+  await ctx.reply("Что можно выиграть в новом сезоне? Напиши приз одним сообщением (например: iPhone 16 Pro).", {
+    reply_markup: cancelInputKeyboard(),
+  });
 }
 
 // --- Slash commands — kept working for anyone who prefers typing them directly.
@@ -234,9 +291,7 @@ export async function handleAddPoints(ctx: Context): Promise<void> {
   if (!(await requireAdmin(ctx))) return;
   const text = ctx.match?.toString().trim();
   if (!text) {
-    await ctx.reply(`Использование: /addpoints @ник 50
-
-${POINTS_HINT}`);
+    await ctx.reply(`Использование: /addpoints @ник 50\n\n${POINTS_HINT}`);
     return;
   }
   await applyAwardPoints(ctx, text);
@@ -250,6 +305,18 @@ export async function handleCheckWinner(ctx: Context): Promise<void> {
 export async function handleCancelSeason(ctx: Context): Promise<void> {
   if (!(await requireAdmin(ctx))) return;
   await applyCancelSeason(ctx);
+}
+
+/** `/startseason 14 iPhone 16 Pro` starts straight away; bare `/startseason` walks through the questions. */
+export async function handleStartSeason(ctx: Context): Promise<void> {
+  if (!(await requireAdmin(ctx))) return;
+  const raw = ctx.match?.toString().trim() ?? "";
+  const parsed = raw.match(/^(\d+)\s+(.+)$/s);
+  if (parsed) {
+    await applyStartSeason(ctx, Number(parsed[1]), parsed[2]!.trim());
+    return;
+  }
+  await promptStartPrize(ctx, ctx.from!.id);
 }
 
 // --- Inline-keyboard buttons, driven by /admin's menu — the main way this
@@ -283,7 +350,7 @@ export async function handleAdminCallback(ctx: Context): Promise<void> {
   }
 
   if (action === "setdays") {
-    await ctx.reply("На сколько дней от сегодня?", { reply_markup: daysKeyboard() });
+    await ctx.reply("На сколько дней от сегодня?", { reply_markup: daysKeyboard("setdays") });
     return;
   }
 
@@ -297,6 +364,29 @@ export async function handleAdminCallback(ctx: Context): Promise<void> {
       return;
     }
     await applySetDays(ctx, Number(value));
+    return;
+  }
+
+  if (action === "startseason") {
+    await promptStartPrize(ctx, userId);
+    return;
+  }
+
+  if (action.startsWith("startdays:")) {
+    const value = action.slice("startdays:".length);
+    if (value === "custom") {
+      setPendingAdminInput(userId, "startdays");
+      await ctx.reply("Напиши число дней одним сообщением (например: 14).", {
+        reply_markup: cancelInputKeyboard(),
+      });
+      return;
+    }
+    const prize = takeStartPrize(userId);
+    if (!prize) {
+      await ctx.reply("Приз потерялся — начни заново через /admin.");
+      return;
+    }
+    await applyStartSeason(ctx, Number(value), prize);
     return;
   }
 
@@ -318,15 +408,15 @@ export async function handleAdminCallback(ctx: Context): Promise<void> {
   }
 
   if (action === "cancelinput") {
-    takePendingAdminInput(userId);
-    await ctx.reply("Ок, ничего не меняю.", { reply_markup: adminMenuKeyboard() });
+    clearAdminInput(userId);
+    await ctx.reply("Ок, ничего не меняю. Меню — /admin.");
   }
 }
 
-// --- Free-text replies for the two actions that need typed input
-// (setprize's text, setdays' custom number) — only acts when this admin has
-// a pending prompt from the callback handler above; a no-op otherwise, so
-// it never intercepts anyone else's normal messages to the bot.
+// --- Free-text replies for the actions that need typed input — only acts
+// when this admin has a pending prompt from the callback handler above; a
+// no-op otherwise, so it never intercepts anyone else's normal messages to
+// the bot.
 
 export async function handleAdminTextInput(ctx: Context): Promise<void> {
   const userId = ctx.from?.id;
@@ -348,11 +438,29 @@ export async function handleAdminTextInput(ctx: Context): Promise<void> {
     return;
   }
 
+  if (pending === "startprize") {
+    setStartPrize(userId, text);
+    await ctx.reply(`Приз: ${text}\n\nНа сколько дней сезон?`, { reply_markup: daysKeyboard("startdays") });
+    return;
+  }
+
   const days = Number(text);
   if (!Number.isFinite(days) || days <= 0) {
+    clearAdminInput(userId);
     await ctx.reply("Это не похоже на число дней. Открой /admin и попробуй ещё раз.");
     return;
   }
+
+  if (pending === "startdays") {
+    const prize = takeStartPrize(userId);
+    if (!prize) {
+      await ctx.reply("Приз потерялся — начни заново через /admin.");
+      return;
+    }
+    await applyStartSeason(ctx, days, prize);
+    return;
+  }
+
   await applySetDays(ctx, days);
 }
 

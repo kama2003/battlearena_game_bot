@@ -38,7 +38,12 @@ vi.mock("../../lib/prisma", () => ({
 }));
 
 vi.mock("../seasons/service", () => ({
-  getOrRotateCurrentSeason: vi.fn(async () => ({ id: "season-1" })),
+  getCurrentSeason: vi.fn(async () => ({
+    id: "season-1",
+    isActive: true,
+    startsAt: new Date(0),
+    endsAt: new Date("2999-01-01"),
+  })),
 }));
 
 vi.mock("../leaderboard/service", () => ({

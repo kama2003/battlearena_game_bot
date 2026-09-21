@@ -1,9 +1,11 @@
+import { Prisma } from "@prisma/client";
 import type { Season } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { env } from "../../config/env";
 import { GAME_BALANCE } from "@battle/config";
 import type { SeasonResponse } from "@battle/types";
 import { sendTelegramMessage } from "../telegram/client";
+import { isSeasonRunning } from "./state";
 
 export interface SeasonWinner {
   userId: string;
@@ -15,10 +17,22 @@ export interface SeasonWinner {
 }
 
 export interface FinalizeSeasonResult {
+  /** "ended" means there is no running season — it is waiting for an admin to start the next one. */
+  state: "running" | "ended";
+  /** True only for the call that actually ended the season and announced the result. */
   finalized: boolean;
   daysRemaining?: number;
   endedSeason?: { name: string; prizeDescription: string };
   winners?: SeasonWinner[];
+}
+
+export class SeasonError extends Error {
+  constructor(
+    message: string,
+    public readonly statusCode: number,
+  ) {
+    super(message);
+  }
 }
 
 /** One prize, one winner. */
@@ -50,15 +64,18 @@ function daysBetween(from: number, to: number): number {
   return Math.max(0, Math.floor((to - from) / (24 * 60 * 60 * 1000)));
 }
 
-async function createNextSeason(afterNumber: number, startsAt: Date) {
-  const endsAt = new Date(startsAt.getTime() + env.SEASON_DURATION_DAYS * 24 * 60 * 60 * 1000);
+async function latestSeason(): Promise<Season | null> {
+  return prisma.season.findFirst({ orderBy: { number: "desc" } });
+}
+
+function createSeason(number: number, startsAt: Date, days: number, prizeDescription: string) {
   return prisma.season.create({
     data: {
-      number: afterNumber + 1,
-      name: `Сезон #${afterNumber + 1}`,
+      number,
+      name: `Сезон #${number}`,
       startsAt,
-      endsAt,
-      prizeDescription: GAME_BALANCE.defaultPrizeDescription,
+      endsAt: new Date(startsAt.getTime() + days * 24 * 60 * 60 * 1000),
+      prizeDescription,
       isActive: true,
     },
   });
@@ -100,112 +117,153 @@ async function announceSeasonResults(
 }
 
 /**
- * The one place a season ever rotates. Both the ordinary "just show me the
- * current season" read path and the bot's explicit /checkwinner check funnel
- * through here, so whichever one happens to notice the season expired first
- * is the only one that computes winners and sends notifications.
+ * Ends the latest season if its time is up: computes the winner, announces
+ * it, and marks the season inactive. It does NOT start another season —
+ * between seasons nothing is playable until an admin starts the next one.
  *
- * That's enforced with an optimistic-lock update (`isActive: true` in the
- * WHERE clause): if a concurrent caller already flipped it, `count` comes
- * back 0 and this caller just reads whatever season won that race instead
- * of rotating — and, critically, without re-announcing anything.
+ * Every read path funnels through here, so whichever request notices the
+ * expiry first is the only one that announces: the isActive flip is an
+ * optimistic-lock update (`isActive: true` in the WHERE), and a concurrent
+ * caller that loses it just re-reads the season instead of announcing again.
  */
-async function rotateIfExpired(now: Date): Promise<{
+async function endSeasonIfExpired(now: Date): Promise<{
   season: Season;
   finalized: boolean;
   endedSeason?: { name: string; prizeDescription: string };
   winners?: SeasonWinner[];
 }> {
-  const active = await prisma.season.findFirst({ where: { isActive: true }, orderBy: { number: "desc" } });
+  const latest = await latestSeason();
 
-  if (active && active.endsAt > now) {
-    return { season: active, finalized: false };
+  if (!latest) {
+    // Brand-new database: bootstrap the very first season.
+    const first = await createSeason(
+      1,
+      now,
+      env.SEASON_DURATION_DAYS,
+      GAME_BALANCE.defaultPrizeDescription,
+    );
+    return { season: first, finalized: false };
   }
 
-  if (!active) {
-    const season = await createNextSeason(0, now);
-    return { season, finalized: false };
+  if (!latest.isActive || latest.endsAt > now) {
+    return { season: latest, finalized: false };
   }
 
-  const deactivated = await prisma.season.updateMany({
-    where: { id: active.id, isActive: true },
+  const flipped = await prisma.season.updateMany({
+    where: { id: latest.id, isActive: true },
     data: { isActive: false },
   });
+  const ended: Season = { ...latest, isActive: false };
 
-  if (deactivated.count === 0) {
-    // Another request already rotated it between our read and this update.
-    const current = await prisma.season.findFirst({ where: { isActive: true }, orderBy: { number: "desc" } });
-    if (current) return { season: current, finalized: false };
-    // Vanishingly unlikely: the other request hasn't created its season yet.
-    // Fall through and create one ourselves rather than return nothing.
+  if (flipped.count === 0) {
+    // Another request ended it between our read and this update.
+    return { season: ended, finalized: false };
   }
 
-  const winners = await getSeasonLeaders(active.id, TOP_N_WINNERS);
-
-  const newSeason = await createNextSeason(active.number, now);
-  const endedSeason = { name: active.name, prizeDescription: active.prizeDescription };
+  const winners = await getSeasonLeaders(latest.id, TOP_N_WINNERS);
+  const endedSeason = { name: latest.name, prizeDescription: latest.prizeDescription };
   await announceSeasonResults(endedSeason, winners);
 
-  return { season: newSeason, finalized: true, endedSeason, winners };
+  return { season: ended, finalized: true, endedSeason, winners };
 }
 
 /**
- * Returns the current active season, rotating to a new one (and announcing
- * results, see rotateIfExpired) if the active one has expired. Season
- * history — and every score within it — is preserved; only `isActive` and
- * the pointer to "current" change.
+ * The season everything else keys off: the latest one, running or not. If it
+ * has expired it is ended (and announced) on the way — see endSeasonIfExpired.
+ * Check isSeasonRunning() before letting anything be played or awarded.
  */
-export async function getOrRotateCurrentSeason(): Promise<Season> {
-  const { season } = await rotateIfExpired(new Date());
+export async function getCurrentSeason(): Promise<Season> {
+  const { season } = await endSeasonIfExpired(new Date());
   return season;
 }
 
 /** Used by the bot's /checkwinner command and its periodic safety-net poll. */
 export async function finalizeSeasonIfExpired(): Promise<FinalizeSeasonResult> {
   const now = new Date();
-  const result = await rotateIfExpired(now);
+  const result = await endSeasonIfExpired(now);
 
-  if (!result.finalized) {
-    return { finalized: false, daysRemaining: daysBetween(now.getTime(), result.season.endsAt.getTime()) };
+  if (isSeasonRunning(result.season, now)) {
+    return {
+      state: "running",
+      finalized: false,
+      daysRemaining: daysBetween(now.getTime(), result.season.endsAt.getTime()),
+    };
   }
-  return { finalized: true, endedSeason: result.endedSeason, winners: result.winners };
+
+  // Not running: report the season that just ended (or ended earlier) and who won it.
+  const winners = result.winners ?? (await getSeasonLeaders(result.season.id, TOP_N_WINNERS));
+  return {
+    state: "ended",
+    finalized: result.finalized,
+    endedSeason: { name: result.season.name, prizeDescription: result.season.prizeDescription },
+    winners,
+  };
 }
 
 export interface CancelSeasonResult {
   cancelledSeasonName: string | null;
-  newSeason: Season;
 }
 
 /**
- * Admin-triggered early end with no winner computation and no announcement
- * — for scrapping a season gone wrong, as opposed to /checkwinner's
- * "the season ended normally, tell everyone" path. Attempts reset
- * immediately too, since getAttemptsInfo bounds "today" by the current
- * season's startsAt (see game/service.ts) — a fresh season means a fresh
- * startsAt, so nobody stays blocked by attempts they used in the old one.
+ * Admin-triggered early end with no winner computation and no announcement —
+ * for scrapping a season gone wrong, as opposed to /checkwinner's "it ended
+ * normally, tell everyone". Like a normal end it leaves no running season;
+ * the admin starts the next one.
  */
 export async function cancelCurrentSeason(): Promise<CancelSeasonResult> {
-  const now = new Date();
-  const active = await prisma.season.findFirst({ where: { isActive: true }, orderBy: { number: "desc" } });
+  const active = await prisma.season.findFirst({
+    where: { isActive: true },
+    orderBy: { number: "desc" },
+  });
+  if (!active) return { cancelledSeasonName: null };
 
-  let baseNumber = active?.number ?? 0;
-  if (active) {
-    const deactivated = await prisma.season.updateMany({
-      where: { id: active.id, isActive: true },
-      data: { isActive: false },
-    });
-    if (deactivated.count === 0) {
-      // Cancelled or rotated by a concurrent request already — surface
-      // whatever season that left active rather than creating a duplicate.
-      const current = await prisma.season.findFirst({ where: { isActive: true }, orderBy: { number: "desc" } });
-      if (current) return { cancelledSeasonName: active.name, newSeason: current };
-    } else {
-      baseNumber = active.number;
-    }
+  await prisma.season.updateMany({
+    where: { id: active.id, isActive: true },
+    data: { isActive: false },
+  });
+  return { cancelledSeasonName: active.name };
+}
+
+/**
+ * Starts the next season now, with the prize and length the admin chose.
+ * Attempts reset with it, since the attempts window is bounded by the
+ * current season's startsAt (see game/service.ts).
+ */
+export async function startNewSeason(days: number, prizeDescription: string): Promise<Season> {
+  const now = new Date();
+  const { season: latest } = await endSeasonIfExpired(now);
+
+  if (isSeasonRunning(latest, now)) {
+    throw new SeasonError("Сезон уже идёт — сначала отмени или дождись конца.", 409);
   }
 
-  const newSeason = await createNextSeason(baseNumber, now);
-  return { cancelledSeasonName: active?.name ?? null, newSeason };
+  let season: Season;
+  try {
+    season = await createSeason(latest.number + 1, now, days, prizeDescription);
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      throw new SeasonError("Сезон уже начат.", 409);
+    }
+    throw error;
+  }
+
+  try {
+    await sendTelegramMessage(
+      `@${env.CHANNEL_USERNAME}`,
+      [
+        `🚀 ${season.name} начался!`,
+        "",
+        `🎁 Приз: ${season.prizeDescription}`,
+        `⏳ Длится ${days} дн.`,
+        "",
+        `Играть: https://t.me/${env.BOT_USERNAME}`,
+      ].join("\n"),
+    );
+  } catch (error) {
+    console.error("Failed to announce the new season in the channel:", error);
+  }
+
+  return season;
 }
 
 export async function buildSeasonResponse(season: Season, userId: string): Promise<SeasonResponse> {
@@ -216,10 +274,10 @@ export async function buildSeasonResponse(season: Season, userId: string): Promi
     }),
   ]);
 
-  const daysRemaining = Math.max(
-    0,
-    Math.floor((season.endsAt.getTime() - Date.now()) / (24 * 60 * 60 * 1000)),
-  );
+  const running = isSeasonRunning(season);
+  const daysRemaining = running
+    ? Math.max(0, Math.floor((season.endsAt.getTime() - Date.now()) / (24 * 60 * 60 * 1000)))
+    : 0;
 
   return {
     id: season.id,
@@ -227,6 +285,7 @@ export async function buildSeasonResponse(season: Season, userId: string): Promi
     name: season.name,
     startsAt: season.startsAt.toISOString(),
     endsAt: season.endsAt.toISOString(),
+    status: running ? "running" : "ended",
     daysRemaining,
     prizeDescription: season.prizeDescription,
     participants,

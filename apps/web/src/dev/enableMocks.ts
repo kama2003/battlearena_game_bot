@@ -50,7 +50,9 @@ export function enableMocksIfRequested(): void {
       return json({ ...mockSubscriptionStatus, subscribed: scenario !== "notsubscribed" });
     }
     if (pathname === "/api/me") return json(mockMe);
-    if (pathname === "/api/seasons/current") return json(mockSeason);
+    if (pathname === "/api/seasons/current") {
+      return json(scenario === "ended" ? { ...mockSeason, status: "ended", daysRemaining: 0 } : mockSeason);
+    }
     if (pathname === "/api/leaderboard") {
       const result = buildMockLeaderboard(scenario);
       result.period = (searchParams.get("period") as typeof result.period) ?? "day";

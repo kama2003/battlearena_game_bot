@@ -59,6 +59,7 @@ export const mockSeason: SeasonResponse = {
   name: "Сезон #3",
   startsAt: "2026-09-01T00:00:00.000Z",
   endsAt: "2026-09-24T00:00:00.000Z",
+  status: "running",
   daysRemaining: 6,
   prizeDescription: "10 000 ₽",
   participants: 1284,

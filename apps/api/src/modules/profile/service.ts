@@ -1,6 +1,6 @@
 import { prisma } from "../../lib/prisma";
 import type { AchievementDto, ProfileResponse, UserDto } from "@battle/types";
-import { getOrRotateCurrentSeason } from "../seasons/service";
+import { getCurrentSeason } from "../seasons/service";
 import type { User } from "@prisma/client";
 
 function toUserDto(user: User): UserDto {
@@ -17,7 +17,7 @@ function toUserDto(user: User): UserDto {
 }
 
 export async function getProfile(user: User): Promise<ProfileResponse> {
-  const season = await getOrRotateCurrentSeason();
+  const season = await getCurrentSeason();
 
   const [seasonScore, gamesPlayed, duelsWon, friendsInvited] = await Promise.all([
     prisma.seasonScore.findUnique({ where: { userId_seasonId: { userId: user.id, seasonId: season.id } } }),

@@ -12,6 +12,7 @@ import {
   handleCheckWinner,
   handleSetDays,
   handleSetPrize,
+  handleStartSeason,
 } from "./handlers/admin";
 import { getProxyAgent } from "./lib/proxyAgent";
 import { startSeasonWatcher } from "./lib/seasonWatcher";
@@ -29,6 +30,7 @@ bot.command("setdays", handleSetDays);
 bot.command("checkwinner", handleCheckWinner);
 bot.command("cancelseason", handleCancelSeason);
 bot.command("addpoints", handleAddPoints);
+bot.command("startseason", handleStartSeason);
 bot.callbackQuery(/^admin:/, handleAdminCallback);
 // Must come after every bot.command() above — it only acts when the admin
 // has a pending prompt from the /admin menu, and no-ops for anything else,

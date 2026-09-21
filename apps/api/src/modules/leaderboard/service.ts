@@ -1,7 +1,7 @@
 import { prisma } from "../../lib/prisma";
 import { GAME_BALANCE } from "@battle/config";
 import type { LeaderboardEntryDto, LeaderboardPeriod, LeaderboardResponse } from "@battle/types";
-import { getOrRotateCurrentSeason } from "../seasons/service";
+import { getCurrentSeason } from "../seasons/service";
 import { startOfUtcDay, endOfUtcDay, startOfUtcWeek, endOfUtcWeek } from "../../lib/dates";
 
 interface RankedRow {
@@ -159,7 +159,7 @@ export async function getLeaderboard(
   period: LeaderboardPeriod,
   page: number,
 ): Promise<LeaderboardResponse> {
-  const season = await getOrRotateCurrentSeason();
+  const season = await getCurrentSeason();
 
   const result =
     period === "season"
@@ -187,7 +187,7 @@ export async function getLeaderboard(
 export async function getUserDayRank(
   userId: string,
 ): Promise<{ rank: number | null; dayBestScore: number }> {
-  const season = await getOrRotateCurrentSeason();
+  const season = await getCurrentSeason();
   const { current } = await getWindowedLeaderboard(
     season.id,
     { from: startOfUtcDay(), to: endOfUtcDay() },

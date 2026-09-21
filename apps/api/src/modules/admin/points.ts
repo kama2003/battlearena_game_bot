@@ -1,5 +1,6 @@
 import { prisma } from "../../lib/prisma";
-import { getOrRotateCurrentSeason } from "../seasons/service";
+import { getCurrentSeason } from "../seasons/service";
+import { isSeasonRunning } from "../seasons/state";
 import { sendTelegramMessage } from "../telegram/client";
 
 export class AwardPointsError extends Error {
@@ -43,7 +44,10 @@ export async function awardPoints(
     );
   }
 
-  const season = await getOrRotateCurrentSeason();
+  const season = await getCurrentSeason();
+  if (!isSeasonRunning(season)) {
+    throw new AwardPointsError("Сезон сейчас не идёт — баллы начислять некуда.", 409);
+  }
 
   const updated = await prisma.$transaction(async (tx) => {
     const current = await tx.seasonScore.findUnique({

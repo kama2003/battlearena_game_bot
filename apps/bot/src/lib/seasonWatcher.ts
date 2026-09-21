@@ -10,6 +10,8 @@ interface SeasonWinner {
 }
 
 export interface FinalizeResult {
+  /** "ended": no running season — waiting for the admin to start the next one. */
+  state: "running" | "ended";
   finalized: boolean;
   daysRemaining?: number;
   endedSeason?: { name: string; prizeDescription: string };

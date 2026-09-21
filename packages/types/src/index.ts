@@ -172,6 +172,8 @@ export interface SeasonResponse {
   name: string;
   startsAt: string;
   endsAt: string;
+  /** "ended" between seasons: the latest season's standings still show, but nothing can be played. */
+  status: "running" | "ended";
   daysRemaining: number;
   prizeDescription: string;
   participants: number;

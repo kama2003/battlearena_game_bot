@@ -10,6 +10,7 @@ export function HomePage() {
   const me = useMe();
   const season = useSeason();
   const top = useLeaderboard("week", 1);
+  const seasonEnded = season.data?.status === "ended";
 
   return (
     <div className="flex flex-col gap-5 px-4 pt-6">
@@ -34,12 +35,15 @@ export function HomePage() {
         <div className="flex items-center justify-between">
           <p className="text-[20px] font-semibold text-primary">{season.data?.name ?? "Сезон"}</p>
           <Badge variant="neutral">
-            До конца:{" "}
-            {season.data
-              ? season.data.daysRemaining > 0
-                ? `${season.data.daysRemaining} дн.`
-                : "меньше суток"
-              : "…"}
+            {seasonEnded
+              ? "Сезон завершён"
+              : `До конца: ${
+                  season.data
+                    ? season.data.daysRemaining > 0
+                      ? `${season.data.daysRemaining} дн.`
+                      : "меньше суток"
+                    : "…"
+                }`}
           </Badge>
         </div>
 
@@ -64,9 +68,15 @@ export function HomePage() {
           </div>
         )}
 
-        <Button size="lg" icon={<ArrowRight size={18} />} onClick={() => navigate("/play")}>
-          Играть
-        </Button>
+        {seasonEnded ? (
+          <Button size="lg" variant="secondary" disabled>
+            Скоро новый сезон
+          </Button>
+        ) : (
+          <Button size="lg" icon={<ArrowRight size={18} />} onClick={() => navigate("/play")}>
+            Играть
+          </Button>
+        )}
       </Card>
 
       <Card
