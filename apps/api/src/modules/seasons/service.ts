@@ -6,6 +6,7 @@ import { GAME_BALANCE } from "@battle/config";
 import type { SeasonResponse } from "@battle/types";
 import { sendTelegramMessage } from "../telegram/client";
 import { isSeasonRunning } from "./state";
+import { SEASON_RANK_ORDER } from "./ranking";
 
 export interface SeasonWinner {
   userId: string;
@@ -14,6 +15,8 @@ export interface SeasonWinner {
   username: string | null;
   rank: number;
   score: number;
+  /** Sum of the player's rounds and awards this season — the tie-break after score. */
+  totalScore: number;
 }
 
 export interface FinalizeSeasonResult {
@@ -39,14 +42,13 @@ export class SeasonError extends Error {
 const TOP_N_WINNERS = 1;
 
 /**
- * Season standings: highest bestScore first; on equal points, whoever
- * reached that score earlier ranks higher (userId only makes it fully
- * deterministic in the vanishing case of an identical timestamp).
+ * Season standings in SEASON_RANK_ORDER: best score, then season total, then
+ * whoever reached the score first.
  */
 export async function getSeasonLeaders(seasonId: string, take: number): Promise<SeasonWinner[]> {
   const rows = await prisma.seasonScore.findMany({
     where: { seasonId },
-    orderBy: [{ bestScore: "desc" }, { bestScoreAt: "asc" }, { userId: "asc" }],
+    orderBy: SEASON_RANK_ORDER,
     take,
     include: { user: true },
   });
@@ -57,6 +59,7 @@ export async function getSeasonLeaders(seasonId: string, take: number): Promise<
     username: entry.user.username,
     rank: index + 1,
     score: entry.bestScore,
+    totalScore: entry.totalScore,
   }));
 }
 

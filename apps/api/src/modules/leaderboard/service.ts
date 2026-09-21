@@ -3,6 +3,7 @@ import { GAME_BALANCE } from "@battle/config";
 import type { LeaderboardEntryDto, LeaderboardPeriod, LeaderboardResponse } from "@battle/types";
 import { getCurrentSeason } from "../seasons/service";
 import { windowedScoresSql } from "./sql";
+import { SEASON_RANK_ORDER, countRankedAbove } from "../seasons/ranking";
 import { startOfUtcDay, endOfUtcDay, startOfUtcWeek, endOfUtcWeek } from "../../lib/dates";
 
 interface RankedRow {
@@ -90,7 +91,7 @@ async function getSeasonLeaderboard(seasonId: string, userId: string, page: numb
   const [rows, total, mine] = await Promise.all([
     prisma.seasonScore.findMany({
       where: { seasonId },
-      orderBy: [{ bestScore: "desc" }, { bestScoreAt: "asc" }, { userId: "asc" }],
+      orderBy: SEASON_RANK_ORDER,
       skip: offset,
       take: PAGE_SIZE,
       include: { user: { select: { username: true, firstName: true, photoUrl: true } } },
@@ -111,15 +112,7 @@ async function getSeasonLeaderboard(seasonId: string, userId: string, page: numb
 
   let current: LeaderboardEntryDto | null = null;
   if (mine) {
-    const higherCount = await prisma.seasonScore.count({
-      where: {
-        seasonId,
-        OR: [
-          { bestScore: { gt: mine.bestScore } },
-          { bestScore: mine.bestScore, bestScoreAt: { lt: mine.bestScoreAt } },
-        ],
-      },
-    });
+    const higherCount = await countRankedAbove(seasonId, mine);
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: { username: true, firstName: true, photoUrl: true },

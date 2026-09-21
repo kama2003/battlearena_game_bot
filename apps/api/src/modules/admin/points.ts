@@ -1,6 +1,7 @@
 import { prisma } from "../../lib/prisma";
 import { getCurrentSeason } from "../seasons/service";
 import { isSeasonRunning } from "../seasons/state";
+import { countRankedAbove } from "../seasons/ranking";
 import { sendTelegramMessage } from "../telegram/client";
 
 export class AwardPointsError extends Error {
@@ -82,15 +83,7 @@ export async function awardPoints(
     });
   });
 
-  const higher = await prisma.seasonScore.count({
-    where: {
-      seasonId: season.id,
-      OR: [
-        { bestScore: { gt: updated.bestScore } },
-        { bestScore: updated.bestScore, bestScoreAt: { lt: updated.bestScoreAt } },
-      ],
-    },
-  });
+  const higher = await countRankedAbove(season.id, updated);
 
   const sign = points > 0 ? "начислено" : "списано";
   try {

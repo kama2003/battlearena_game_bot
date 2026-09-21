@@ -97,6 +97,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         firstName: l.firstName,
         username: l.username,
         score: l.score,
+        totalScore: l.totalScore,
       })),
     };
   });

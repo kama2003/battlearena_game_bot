@@ -1,6 +1,7 @@
 import { prisma } from "../../lib/prisma";
 import type { AchievementDto, ProfileResponse, UserDto } from "@battle/types";
 import { getCurrentSeason } from "../seasons/service";
+import { countRankedAbove } from "../seasons/ranking";
 import type { User } from "@prisma/client";
 
 function toUserDto(user: User): UserDto {
@@ -28,9 +29,7 @@ export async function getProfile(user: User): Promise<ProfileResponse> {
 
   const bestScore = seasonScore?.bestScore ?? 0;
   const rank = seasonScore
-    ? (await prisma.seasonScore.count({
-        where: { seasonId: season.id, bestScore: { gt: seasonScore.bestScore } },
-      })) + 1
+    ? (await countRankedAbove(season.id, seasonScore)) + 1
     : null;
 
   const achievements: AchievementDto[] = [

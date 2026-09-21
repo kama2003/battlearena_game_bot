@@ -19,7 +19,13 @@ interface SeasonSummary {
   endsAt: string;
   status: SeasonStatus;
   daysRemaining: number;
-  leaders?: { rank: number; firstName: string; username: string | null; score: number }[];
+  leaders?: {
+    rank: number;
+    firstName: string;
+    username: string | null;
+    score: number;
+    totalScore: number;
+  }[];
 }
 
 const DAY_PRESETS = [3, 7, 14, 21, 30];
@@ -146,12 +152,19 @@ function leaderName(l: { username: string | null; firstName: string }): string {
 function formatLeaders(leaders: SeasonSummary["leaders"]): string {
   const [first, second] = leaders ?? [];
   if (!first) return "\n\n👑 Лидера пока нет — никто ещё не играл.";
-  const tie =
-    second && second.score === first.score
-      ? "\n⚖️ Ничья по баллам — выигрывает тот, кто набрал их раньше."
-      : "";
-  const table = (leaders ?? []).map((l) => `${l.rank}. ${leaderName(l)} — ${l.score}`).join("\n");
-  return `\n\n👑 Побеждает сейчас: ${leaderName(first)}\n${table}${tie}`;
+
+  const tied = second !== undefined && second.score === first.score;
+  const table = (leaders ?? [])
+    .map((l) => {
+      // Only tied players need their season total shown — it's what separates them.
+      const isTied = tied && l.score === first.score;
+      return `${l.rank}. ${leaderName(l)} — ${l.score}${isTied ? ` (за сезон: ${l.totalScore})` : ""}`;
+    })
+    .join("\n");
+  const note = tied
+    ? "\n⚖️ Ничья по очкам — выше тот, у кого больше очков за сезон, а при равенстве — кто набрал раньше."
+    : "";
+  return `\n\n👑 Побеждает сейчас: ${leaderName(first)}\n${table}${note}`;
 }
 
 function formatSeason(season: SeasonSummary): string {
