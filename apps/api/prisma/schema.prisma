@@ -227,3 +227,16 @@ model SubscriptionCheck {
 
   @@index([userId, checkedAt])
 }
+
+// ---------------------------------------------------------------------------
+// Extra required channels (the primary one still comes from CHANNEL_ID/USERNAME)
+// ---------------------------------------------------------------------------
+
+model RequiredChannel {
+  id        String   @id @default(uuid())
+  /// Telegram chat id, e.g. -1001234567890 — what getChatMember is called with.
+  chatId    String   @unique
+  username  String
+  title     String
+  createdAt DateTime @default(now())
+}

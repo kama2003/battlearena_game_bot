@@ -40,6 +40,7 @@ export const mockUser: UserDto = {
 export const mockSubscriptionStatus: SubscriptionStatusResponse = {
   subscribed: true,
   channelUsername: "ivKamaDesign",
+  channels: [{ username: "ivKamaDesign", title: "@ivKamaDesign", subscribed: true }],
 };
 
 export const mockAuthResponse: TelegramAuthResponse = {

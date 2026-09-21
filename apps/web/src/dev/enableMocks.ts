@@ -47,7 +47,15 @@ export function enableMocksIfRequested(): void {
 
     if (pathname === "/api/auth/telegram") return json(mockAuthResponse);
     if (pathname === "/api/subscription/status" || pathname === "/api/subscription/check") {
-      return json({ ...mockSubscriptionStatus, subscribed: scenario !== "notsubscribed" });
+      const subscribed = scenario !== "notsubscribed";
+      return json({
+        subscribed,
+        channelUsername: mockSubscriptionStatus.channelUsername,
+        channels: [
+          { username: "ivKamaDesign", title: "@ivKamaDesign", subscribed },
+          ...(subscribed ? [] : [{ username: "second_channel", title: "Second Channel", subscribed: false }]),
+        ],
+      });
     }
     if (pathname === "/api/me") return json(mockMe);
     if (pathname === "/api/seasons/current") {

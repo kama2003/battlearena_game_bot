@@ -87,9 +87,17 @@ export interface TelegramAuthResponse {
 // Subscription
 // ---------------------------------------------------------------------------
 
+export interface SubscriptionChannelDto {
+  username: string;
+  title: string;
+  subscribed: boolean;
+}
+
 export interface SubscriptionStatusResponse {
   subscribed: boolean;
+  /** The primary channel (kept for older callers); `channels` lists every required one. */
   channelUsername: string;
+  channels: SubscriptionChannelDto[];
 }
 
 // ---------------------------------------------------------------------------

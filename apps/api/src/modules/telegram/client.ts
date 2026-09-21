@@ -84,3 +84,57 @@ export async function isUserSubscribedToChannel(telegramUserId: string): Promise
 export async function sendTelegramMessage(chatId: string | number, text: string): Promise<void> {
   await callTelegramApi<SendMessageResult>("sendMessage", { chat_id: chatId, text });
 }
+
+export interface ChatInfo {
+  id: number;
+  type: string;
+  title?: string;
+  username?: string;
+}
+
+export async function getChatInfo(chatId: string | number): Promise<ChatInfo> {
+  return callTelegramApi<ChatInfo>("getChat", { chat_id: chatId });
+}
+
+/** The bot's own user id — the numeric part of its token. */
+export function botUserId(): number {
+  return Number(env.BOT_TOKEN.split(":")[0]);
+}
+
+export async function getMemberStatus(
+  chatId: string | number,
+  userId: number,
+): Promise<ChatMemberStatus> {
+  const result = await callTelegramApi<GetChatMemberResult>("getChatMember", {
+    chat_id: chatId,
+    user_id: userId,
+  });
+  return result.status;
+}
+
+const UNUSABLE_CHANNEL_ERRORS =
+  /member list is inaccessible|chat not found|bot was kicked|bot is not a member|not enough rights/i;
+
+/**
+ * Like isUserSubscribedToChannel, for the admin-added channels. If the bot
+ * has since lost access to one of them (removed as admin, channel deleted),
+ * that channel is skipped rather than counted as "not subscribed" — otherwise
+ * one broken setting would lock every player out of the game.
+ */
+export async function isUserSubscribedToExtraChannel(
+  chatId: string,
+  telegramUserId: string,
+): Promise<boolean> {
+  try {
+    return SUBSCRIBED_STATUSES.has(await getMemberStatus(chatId, Number(telegramUserId)));
+  } catch (error) {
+    if (error instanceof TelegramApiError && error.code === 400) {
+      if (UNUSABLE_CHANNEL_ERRORS.test(error.message)) {
+        console.error(`Skipping required channel ${chatId}: ${error.message}`);
+        return true;
+      }
+      return false;
+    }
+    throw error;
+  }
+}

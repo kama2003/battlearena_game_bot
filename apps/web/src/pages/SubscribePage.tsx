@@ -14,11 +14,18 @@ export function SubscribePage() {
   const { data } = useSubscriptionStatus();
   const check = useCheckSubscription();
 
-  const channelUsername = data?.channelUsername;
+  // Channels the user still has to join; falls back to the primary one until
+  // the status has loaded.
+  const missing = (data?.channels ?? []).filter((c) => !c.subscribed);
+  const targets =
+    missing.length > 0
+      ? missing
+      : data?.channelUsername
+        ? [{ username: data.channelUsername, title: `@${data.channelUsername}` }]
+        : [];
 
-  function openChannel() {
-    if (!channelUsername) return;
-    const url = `https://t.me/${channelUsername}`;
+  function openChannel(username: string) {
+    const url = `https://t.me/${username}`;
     const app = getTelegramWebApp();
     if (app) app.openTelegramLink(url);
     else window.open(url, "_blank");
@@ -63,10 +70,26 @@ export function SubscribePage() {
         </ul>
       </div>
 
-      <div className="flex flex-col items-center gap-4">
-        <Button size="lg" onClick={openChannel} disabled={!channelUsername}>
-          ✈ Подписаться на канал
-        </Button>
+      <div className="flex flex-col items-center gap-3">
+        {targets.length > 1 && (
+          <p className="text-[14px] text-secondary">Нужно подписаться на все каналы:</p>
+        )}
+        {targets.length === 0 ? (
+          <Button size="lg" disabled>
+            ✈ Подписаться на канал
+          </Button>
+        ) : (
+          targets.map((channel, index) => (
+            <Button
+              key={channel.username}
+              size="lg"
+              variant={index === 0 ? "primary" : "secondary"}
+              onClick={() => openChannel(channel.username)}
+            >
+              ✈ {targets.length > 1 ? channel.title : "Подписаться на канал"}
+            </Button>
+          ))
+        )}
         <button
           type="button"
           onClick={handleCheck}

@@ -5,7 +5,13 @@
  * Plain in-memory maps — the bot is a single long-running process, so this
  * doesn't need to survive a restart, and no other process ever reads it.
  */
-export type PendingAdminInput = "prize" | "days" | "points" | "startprize" | "startdays";
+export type PendingAdminInput =
+  | "prize"
+  | "days"
+  | "points"
+  | "startprize"
+  | "startdays"
+  | "addchannel";
 
 const pending = new Map<number, PendingAdminInput>();
 const startPrize = new Map<number, string>();

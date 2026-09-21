@@ -12,6 +12,13 @@ import {
   startNewSeason,
 } from "../seasons/service";
 import { isSeasonRunning } from "../seasons/state";
+import {
+  ChannelError,
+  addRequiredChannel,
+  listRequiredChannels,
+  removeRequiredChannel,
+} from "../channels/service";
+import { getSubscriptionState } from "../subscription/service";
 
 const updateSeasonSchema = z
   .object({
@@ -41,6 +48,10 @@ const awardPointsSchema = z
   .refine((d) => d.username !== undefined || d.telegramId !== undefined, {
     message: "Provide username or telegramId",
   });
+
+const addChannelSchema = z.object({ channel: z.string().trim().min(1).max(200) });
+const removeChannelSchema = z.object({ id: z.string().min(1).max(64) });
+const subscriptionStateSchema = z.object({ telegramId: z.string().regex(/^\d+$/) });
 
 function seasonSummary(season: {
   name: string;
@@ -152,6 +163,68 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       }
       throw error;
     }
+  });
+
+  // --- Required channels -------------------------------------------------
+
+  app.get("/api/admin/channels", async () => {
+    const channels = await listRequiredChannels();
+    return {
+      primary: { username: env.CHANNEL_USERNAME },
+      channels: channels.map((c) => ({ id: c.id, username: c.username, title: c.title })),
+    };
+  });
+
+  app.post("/api/admin/channels", async (request, reply) => {
+    const parsed = addChannelSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply
+        .code(400)
+        .send({ error: { code: "VALIDATION_ERROR", message: parsed.error.message } });
+    }
+    try {
+      const channel = await addRequiredChannel(parsed.data.channel);
+      return { id: channel.id, username: channel.username, title: channel.title };
+    } catch (error) {
+      if (error instanceof ChannelError) {
+        return reply
+          .code(error.statusCode)
+          .send({ error: { code: "CHANNEL_FAILED", message: error.message } });
+      }
+      throw error;
+    }
+  });
+
+  app.post("/api/admin/channels/remove", async (request, reply) => {
+    const parsed = removeChannelSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply
+        .code(400)
+        .send({ error: { code: "VALIDATION_ERROR", message: parsed.error.message } });
+    }
+    try {
+      const channel = await removeRequiredChannel(parsed.data.id);
+      return { id: channel.id, username: channel.username };
+    } catch (error) {
+      if (error instanceof ChannelError) {
+        return reply
+          .code(error.statusCode)
+          .send({ error: { code: "CHANNEL_FAILED", message: error.message } });
+      }
+      throw error;
+    }
+  });
+
+  // The bot's /start gate asks this instead of calling Telegram itself, so
+  // it checks the same full list of channels the Mini App does.
+  app.post("/api/admin/subscription/state", async (request, reply) => {
+    const parsed = subscriptionStateSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply
+        .code(400)
+        .send({ error: { code: "VALIDATION_ERROR", message: parsed.error.message } });
+    }
+    return getSubscriptionState(parsed.data.telegramId);
   });
 
   app.post("/api/admin/points", async (request, reply) => {

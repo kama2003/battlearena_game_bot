@@ -36,7 +36,9 @@ function adminMenuKeyboard(status: SeasonStatus = "running"): InlineKeyboard {
     return new InlineKeyboard()
       .text("▶️ Начать новый сезон", "admin:startseason")
       .row()
-      .text("🏆 Кто победил", "admin:checkwinner");
+      .text("🏆 Кто победил", "admin:checkwinner")
+      .row()
+      .text("📢 Каналы подписки", "admin:channels");
   }
   return new InlineKeyboard()
     .text("💰 Изменить приз", "admin:setprize")
@@ -46,7 +48,67 @@ function adminMenuKeyboard(status: SeasonStatus = "running"): InlineKeyboard {
     .row()
     .text("🏆 Проверить победителя", "admin:checkwinner")
     .row()
+    .text("📢 Каналы подписки", "admin:channels")
+    .row()
     .text("❌ Отменить сезон", "admin:cancelseason");
+}
+
+interface ChannelsList {
+  primary: { username: string };
+  channels: { id: string; username: string; title: string }[];
+}
+
+function channelsKeyboard(list: ChannelsList): InlineKeyboard {
+  const kb = new InlineKeyboard();
+  for (const channel of list.channels) {
+    kb.text(`🗑 Убрать @${channel.username}`, `admin:delchannel:${channel.id}`).row();
+  }
+  return kb.text("➕ Добавить канал", "admin:addchannel").row().text("⬅️ Меню", "admin:menu");
+}
+
+async function showChannels(ctx: Context, heading?: string): Promise<void> {
+  try {
+    const list = await callAdminApi<ChannelsList>("/api/admin/channels");
+    const extras =
+      list.channels.length > 0
+        ? list.channels.map((c) => `• @${c.username} — ${c.title}`).join("\n")
+        : "Дополнительных каналов пока нет.";
+    await ctx.reply(
+      `${heading ? `${heading}\n\n` : ""}📢 Обязательные каналы — играть можно, только подписавшись на все:\n\n` +
+        `• @${list.primary.username} — основной, убрать нельзя\n${extras}`,
+      { reply_markup: channelsKeyboard(list) },
+    );
+  } catch (error) {
+    await ctx.reply(`Не удалось получить список каналов: ${errorMessage(error)}`);
+  }
+}
+
+async function applyAddChannel(ctx: Context, text: string): Promise<void> {
+  try {
+    const channel = await callAdminApi<{ id: string; username: string; title: string }>(
+      "/api/admin/channels",
+      { method: "POST", body: { channel: text } },
+    );
+    await showChannels(ctx, `✅ @${channel.username} добавлен — теперь подписка и на него обязательна.`);
+  } catch (error) {
+    await ctx.reply(`Не удалось добавить канал: ${errorMessage(error)}`, {
+      reply_markup: cancelInputKeyboard(),
+    });
+    // Let the admin fix the input and just resend, without pressing the button again.
+    setPendingAdminInput(ctx.from!.id, "addchannel");
+  }
+}
+
+async function applyRemoveChannel(ctx: Context, id: string): Promise<void> {
+  try {
+    const removed = await callAdminApi<{ username: string }>("/api/admin/channels/remove", {
+      method: "POST",
+      body: { id },
+    });
+    await showChannels(ctx, `🗑 @${removed.username} убран из обязательных.`);
+  } catch (error) {
+    await ctx.reply(`Не удалось убрать канал: ${errorMessage(error)}`);
+  }
 }
 
 function daysKeyboard(prefix: "setdays" | "startdays"): InlineKeyboard {
@@ -407,6 +469,31 @@ export async function handleAdminCallback(ctx: Context): Promise<void> {
     return;
   }
 
+  if (action === "channels") {
+    await showChannels(ctx);
+    return;
+  }
+
+  if (action === "addchannel") {
+    setPendingAdminInput(userId, "addchannel");
+    await ctx.reply(
+      "Пришли @ник или ссылку на публичный канал (например: @mychannel).\n\n" +
+        "Бот должен быть администратором этого канала — иначе он не сможет проверять подписку.",
+      { reply_markup: cancelInputKeyboard() },
+    );
+    return;
+  }
+
+  if (action.startsWith("delchannel:")) {
+    await applyRemoveChannel(ctx, action.slice("delchannel:".length));
+    return;
+  }
+
+  if (action === "menu") {
+    await handleAdmin(ctx);
+    return;
+  }
+
   if (action === "cancelinput") {
     clearAdminInput(userId);
     await ctx.reply("Ок, ничего не меняю. Меню — /admin.");
@@ -435,6 +522,11 @@ export async function handleAdminTextInput(ctx: Context): Promise<void> {
 
   if (pending === "points") {
     await applyAwardPoints(ctx, text);
+    return;
+  }
+
+  if (pending === "addchannel") {
+    await applyAddChannel(ctx, text);
     return;
   }
 
